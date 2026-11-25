@@ -118,9 +118,7 @@ export NODE_OPTIONS="${NODE_OPTIONS:---max-old-space-size=640}"
 
 # 4. Compile C++ game engine to WebAssembly
 log "Compiling src/cpp/game.cpp -> public/game.wasm..."
-mkdir -p public
-clang++ --target=wasm32 -O3 -std=c++17 -nostdlib -fno-exceptions -fno-rtti \
-  -Wl,--no-entry -Wl,--export-all -o public/game.wasm src/cpp/game.cpp
+bash scripts/build-wasm.sh
 ls -lh public/game.wasm
 
 # 5. Install Node dependencies conservatively (no audit/fund overhead, limited sockets)

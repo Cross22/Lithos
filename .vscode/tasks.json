@@ -1,0 +1,73 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "Build WebAssembly (C++ -> WASM)",
+      "type": "shell",
+      "command": "bash",
+      "args": ["scripts/build-wasm.sh"],
+      "group": "build",
+      "problemMatcher": ["$gcc"],
+      "presentation": {
+        "reveal": "silent",
+        "panel": "shared"
+      }
+    },
+    {
+      "label": "TypeScript Lint",
+      "type": "npm",
+      "script": "lint",
+      "group": "test",
+      "problemMatcher": ["$tsc"]
+    },
+    {
+      "label": "Build Production Bundle (Vite)",
+      "type": "npm",
+      "script": "build",
+      "dependsOn": ["Build WebAssembly (C++ -> WASM)", "TypeScript Lint"],
+      "dependsOrder": "sequence",
+      "group": {
+        "kind": "build",
+        "isDefault": true
+      },
+      "problemMatcher": ["$tsc"]
+    },
+    {
+      "label": "Dev Server (Build WASM + Vite)",
+      "type": "shell",
+      "command": "bash scripts/build-wasm.sh && npm run dev",
+      "isBackground": true,
+      "problemMatcher": [
+        {
+          "pattern": [
+            {
+              "regexp": "^(.*)$",
+              "file": 1,
+              "location": 2,
+              "message": 3
+            }
+          ],
+          "background": {
+            "activeOnStart": true,
+            "beginsPattern": "VITE v",
+            "endsPattern": "Local:\\s+http://"
+          }
+        }
+      ],
+      "presentation": {
+        "reveal": "always",
+        "panel": "dedicated"
+      }
+    },
+    {
+      "label": "One-Time macOS Setup",
+      "type": "shell",
+      "command": "bash",
+      "args": ["setup-macos.sh"],
+      "presentation": {
+        "reveal": "always",
+        "panel": "dedicated"
+      }
+    }
+  ]
+}

@@ -11,7 +11,8 @@ coverage/
 # Editor & OS metadata
 .DS_Store
 Thumbs.db
-.vscode/
+.vscode/ipch/
+.vscode/*.local
 .idea/
 *.swp
 *.swo

@@ -1,0 +1,29 @@
+{
+  "version": 4,
+  "configurations": [
+    {
+      "name": "Mac (Apple Silicon - Homebrew LLVM)",
+      "compilerPath": "/opt/homebrew/opt/llvm/bin/clang++",
+      "cppStandard": "c++17",
+      "intelliSenseMode": "macos-clang-arm64",
+      "compilerArgs": ["--target=wasm32", "-nostdlib"],
+      "includePath": ["${workspaceFolder}/src/cpp/**"]
+    },
+    {
+      "name": "Mac (Intel - Homebrew LLVM)",
+      "compilerPath": "/usr/local/opt/llvm/bin/clang++",
+      "cppStandard": "c++17",
+      "intelliSenseMode": "macos-clang-x64",
+      "compilerArgs": ["--target=wasm32", "-nostdlib"],
+      "includePath": ["${workspaceFolder}/src/cpp/**"]
+    },
+    {
+      "name": "Linux (Clang WASM)",
+      "compilerPath": "/usr/bin/clang++",
+      "cppStandard": "c++17",
+      "intelliSenseMode": "linux-clang-x64",
+      "compilerArgs": ["--target=wasm32", "-nostdlib"],
+      "includePath": ["${workspaceFolder}/src/cpp/**"]
+    }
+  ]
+}

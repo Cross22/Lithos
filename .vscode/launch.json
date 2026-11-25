@@ -1,0 +1,21 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "Launch Lithos in Chrome (Dev Server)",
+      "type": "chrome",
+      "request": "launch",
+      "url": "http://localhost:3000",
+      "webRoot": "${workspaceFolder}",
+      "preLaunchTask": "Dev Server (Build WASM + Vite)"
+    },
+    {
+      "name": "Launch Lithos in Edge (Dev Server)",
+      "type": "msedge",
+      "request": "launch",
+      "url": "http://localhost:3000",
+      "webRoot": "${workspaceFolder}",
+      "preLaunchTask": "Dev Server (Build WASM + Vite)"
+    }
+  ]
+}

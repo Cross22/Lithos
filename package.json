@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite --port=3000 --host=0.0.0.0",
-    "build:wasm": "mkdir -p public && clang++ --target=wasm32 -O3 -std=c++17 -nostdlib -fno-exceptions -fno-rtti -Wl,--no-entry -Wl,--export-all -o public/game.wasm src/cpp/game.cpp",
+    "build:wasm": "bash scripts/build-wasm.sh",
     "build": "vite build",
     "preview": "vite preview",
     "clean": "rm -rf dist server.js",

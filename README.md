@@ -27,6 +27,19 @@ npm run build:wasm   # Requires clang++ and lld
 npm run dev
 ```
 
+## MacBook & VS Code Setup
+
+Apple's built-in Xcode `clang++` omits the `wasm-ld` linker, so macOS builds use Homebrew LLVM. Run the one-time setup script first:
+
+```bash
+chmod +x setup-macos.sh scripts/build-wasm.sh
+./setup-macos.sh
+```
+
+Then open the repository in VS Code:
+- **Build WASM + Production Bundle**: Press `Cmd+Shift+B` (or run `Build Production Bundle (Vite)`).
+- **Build & Run in Browser**: Press `F5` (`Launch Lithos in Chrome (Dev Server)`), which compiles `public/game.wasm`, starts Vite on port `3000`, and opens `http://localhost:3000`.
+
 ## Building on GCP `e2-micro`
 
 Run the included build script on a Debian/Ubuntu `e2-micro` instance (handles swap memory guardrails for 1 GB RAM, installs `clang`/`lld`/Node.js if needed, compiles C++ to WebAssembly, lints, and builds `dist/`):
