@@ -1,0 +1,6 @@
+{
+  "name": "Lithos 10x20",
+  "description": "A 2D tile-based 10x20 puzzle game powered by a C++ WebAssembly engine, framed in carved grey marble.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

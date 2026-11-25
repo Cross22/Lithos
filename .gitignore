@@ -1,0 +1,24 @@
+# Dependencies & build artifacts
+node_modules/
+build/
+dist/
+coverage/
+
+# Temporary C++ object files (keep public/game.wasm tracked or rebuild via build:wasm)
+*.o
+*.obj
+
+# Editor & OS metadata
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+*.swp
+*.swo
+*.tmp
+
+# Logs & local environment secrets
+*.log
+npm-debug.log*
+.env*
+!.env.example

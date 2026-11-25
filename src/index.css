@@ -1,0 +1,93 @@
+/**
+ * Global stylesheet for Lithos 10x20.
+ *
+ * Imports Tailwind CSS v4 and defines:
+ *   1. Base dark architectural canvas defaults and font stacks.
+ *   2. Tabular numeric utility classes so Score and Elapsed Time never jitter.
+ *   3. Multi-layered carved grey marble border styling (.marble-frame) and
+ *      recessed dark slate pit shadow (.marble-well-recess).
+ *   4. Accessibility motion reduction rules.
+ */
+@import "tailwindcss";
+
+@layer base {
+  :root {
+    /* Inform browser UI (scrollbars, form controls) that this is a dark surface */
+    color-scheme: dark;
+    font-family: 'Plus Jakarta Sans', system-ui, -apple-system, sans-serif;
+  }
+
+  /* Lock root containers to exact viewport height to keep all 20 rows visible
+     without page scrolling across desktop, laptop, and mobile viewports. */
+  html,
+  body,
+  #root {
+    height: 100%;
+    margin: 0;
+    padding: 0;
+    overflow: hidden;
+    background-color: #131518;
+    color: #f1f3f5;
+    -webkit-font-smoothing: antialiased;
+  }
+}
+
+/* Display typography for game title and state overlay headings */
+.font-display {
+  font-family: 'Outfit', system-ui, -apple-system, sans-serif;
+}
+
+/* Fixed-width tabular numerals for Score, Elapsed Time, Lines, Level, and keycaps */
+.font-mono-tabular {
+  font-family: 'JetBrains Mono', ui-monospace, SFMono-Regular, monospace;
+  font-variant-numeric: tabular-nums;
+}
+
+/*
+ * Carved Grey Marble Frame
+ *
+ * Combines:
+ *   - A neutral grey stone fallback color (#7c828a) in case texture loading lags.
+ *   - A subtle directional specular/shadow gradient to simulate a chamfered stone slab.
+ *   - The generated seamless Bardiglio grey marble photographic texture.
+ *   - Outer ambient drop shadows + inner 1.5px top-left highlight / bottom-right bevel.
+ */
+.marble-frame {
+  background-color: #7c828a;
+  background-image:
+    linear-gradient(
+      145deg,
+      rgba(255, 255, 255, 0.22) 0%,
+      rgba(255, 255, 255, 0.04) 35%,
+      rgba(15, 18, 22, 0.28) 100%
+    ),
+    url('/src/assets/images/grey_marble_border_1795637285425.jpg');
+  background-size: cover;
+  background-position: center;
+  box-shadow:
+    0 24px 56px -12px rgba(0, 0, 0, 0.72),
+    0 2px 8px rgba(0, 0, 0, 0.45),
+    inset 1.5px 1.5px 0 rgba(255, 255, 255, 0.42),
+    inset -2px -2px 0 rgba(20, 24, 28, 0.6);
+}
+
+/*
+ * Inner recessed pit boundary inside the grey marble border.
+ * Creates physical depth between the carved marble lip and the 10x20 playing field.
+ */
+.marble-well-recess {
+  box-shadow:
+    inset 0 3px 10px rgba(0, 0, 0, 0.85),
+    inset 0 0 0 1px rgba(15, 18, 22, 0.9),
+    0 1px 0 rgba(255, 255, 255, 0.32);
+}
+
+/* Honor OS-level reduced motion preferences by collapsing non-essential transitions */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
+}
