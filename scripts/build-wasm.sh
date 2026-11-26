@@ -2,47 +2,52 @@
 #
 # scripts/build-wasm.sh
 #
-# Cross-platform C++ -> WebAssembly compiler wrapper for macOS (Apple Silicon &
-# Intel) and Linux. Automatically locates Homebrew LLVM on macOS because Apple's
-# default Xcode clang++ does not ship with wasm-ld.
+# Cross-platform C++17 (with C++ Standard Library) -> WebAssembly compiler
+# wrapper for macOS (Apple Silicon & Intel) and Linux.
+#
+# Uses wasi-sdk so C++ code can freely use <array>, <algorithm>, <cstdint>,
+# <random>, <vector>, etc., and produces a standalone WASI reactor .wasm.
 
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$ROOT_DIR"
 
-# On macOS, prepend Homebrew LLVM (Apple Silicon first, then Intel) so both
-# clang++ and wasm-ld are resolved ahead of /usr/bin/clang++.
-if [ "$(uname -s)" = "Darwin" ]; then
-  if [ -d "/opt/homebrew/opt/llvm/bin" ]; then
-    export PATH="/opt/homebrew/opt/llvm/bin:$PATH"
-  elif [ -d "/usr/local/opt/llvm/bin" ]; then
-    export PATH="/usr/local/opt/llvm/bin:$PATH"
+# Locate wasi-sdk installation across standard macOS and Linux paths
+find_wasi_sdk() {
+  local candidates=(
+    "${WASI_SDK_PATH:-}"
+    "$HOME/.local/wasi-sdk"
+    "/opt/wasi-sdk"
+    "/opt/homebrew/opt/wasi-sdk"
+    "/usr/local/opt/wasi-sdk"
+  )
+  for dir in "${candidates[@]}"; do
+    if [ -n "$dir" ] && [ -x "$dir/bin/clang++" ]; then
+      echo "$dir"
+      return 0
+    fi
+  done
+  return 1
+}
+
+WASI_SDK_DIR="$(find_wasi_sdk || true)"
+if [ -z "$WASI_SDK_DIR" ]; then
+  if [ "$(uname -s)" = "Darwin" ]; then
+    echo "ERROR: wasi-sdk not found. Run ./setup-macos.sh to install wasi-sdk into \$HOME/.local/wasi-sdk." >&2
+  else
+    echo "ERROR: wasi-sdk not found. Run ./build-e2-micro.sh or install wasi-sdk into /opt/wasi-sdk." >&2
   fi
-fi
-
-if ! command -v clang++ >/dev/null 2>&1; then
-  echo "ERROR: clang++ not found. On macOS run ./setup-macos.sh (or 'brew install llvm')." >&2
-  exit 1
-fi
-
-if ! command -v wasm-ld >/dev/null 2>&1; then
-  echo "ERROR: wasm-ld not found (Apple Xcode clang++ omits the WebAssembly linker)." >&2
-  echo "On macOS, install Homebrew LLVM via ./setup-macos.sh or 'brew install llvm'." >&2
   exit 1
 fi
 
 mkdir -p public
-clang++ \
-  --target=wasm32 \
+"$WASI_SDK_DIR/bin/clang++" \
   -O3 \
   -std=c++17 \
-  -nostdlib \
+  -mexec-model=reactor \
   -fno-exceptions \
-  -fno-rtti \
-  -Wl,--no-entry \
-  -Wl,--export-all \
   -o public/game.wasm \
   src/cpp/game.cpp
 
-echo "Compiled public/game.wasm ($(wc -c < public/game.wasm | tr -d ' ') bytes)"
+echo "Compiled public/game.wasm ($(wc -c < public/game.wasm | tr -d ' ') bytes) via $WASI_SDK_DIR"

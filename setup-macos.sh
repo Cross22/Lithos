@@ -8,14 +8,18 @@
 # Installs / verifies:
 #   - Xcode Command Line Tools
 #   - Homebrew
-#   - LLVM (provides clang++ + wasm-ld for C++ -> WebAssembly)
+#   - wasi-sdk 34 (Clang + LLVM libc++ + wasi-libc for C++ stdlib -> WASM)
 #   - Node.js (20 LTS or newer)
-#   - npm dependencies + initial public/game.wasm build
+#   - npm dependencies, public/game.wasm build, and TypeScript lint
 
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 cd "$ROOT_DIR"
+
+WASI_SDK_TAG="wasi-sdk-34"
+WASI_SDK_VER="34.0"
+WASI_SDK_DIR="$HOME/.local/wasi-sdk"
 
 log() {
   printf '[setup-macos] %s\n' "$1"
@@ -41,7 +45,7 @@ if ! command -v brew >/dev/null 2>&1; then
   elif [ -x /usr/local/bin/brew ]; then
     eval "$(/usr/local/bin/brew shellenv)"
   else
-    log "Homebrew is required. Installing Homebrew..."
+    log "Installing Homebrew..."
     /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
     if [ -x /opt/homebrew/bin/brew ]; then
       eval "$(/opt/homebrew/bin/brew shellenv)"
@@ -51,12 +55,22 @@ if ! command -v brew >/dev/null 2>&1; then
   fi
 fi
 
-# 3. Homebrew LLVM (required on macOS because Apple's clang lacks wasm-ld)
-if [ ! -x /opt/homebrew/opt/llvm/bin/wasm-ld ] && [ ! -x /usr/local/opt/llvm/bin/wasm-ld ]; then
-  log "Installing LLVM (clang++ & wasm-ld) via Homebrew..."
-  brew install llvm
+# 3. Install wasi-sdk into $HOME/.local/wasi-sdk for C++ stdlib WebAssembly compilation
+if [ ! -x "$WASI_SDK_DIR/bin/clang++" ]; then
+  ARCH="$(uname -m)"
+  if [ "$ARCH" = "arm64" ]; then
+    TARBALL="wasi-sdk-${WASI_SDK_VER}-arm64-macos.tar.gz"
+  else
+    TARBALL="wasi-sdk-${WASI_SDK_VER}-x86_64-macos.tar.gz"
+  fi
+  URL="https://github.com/WebAssembly/wasi-sdk/releases/download/${WASI_SDK_TAG}/${TARBALL}"
+
+  log "Downloading ${TARBALL} into ${WASI_SDK_DIR}..."
+  mkdir -p "$WASI_SDK_DIR"
+  curl -fsSL "$URL" | tar -xz --strip-components=1 -C "$WASI_SDK_DIR"
+  log "Installed $("$WASI_SDK_DIR/bin/clang++" --version | head -n 1)"
 else
-  log "Homebrew LLVM with wasm-ld is already installed."
+  log "wasi-sdk already installed at $WASI_SDK_DIR"
 fi
 
 # 4. Node.js >= 18
@@ -77,11 +91,11 @@ else
   log "Node.js found: $(node -v)"
 fi
 
-# 5. Install npm packages, compile WASM, and verify TypeScript
+# 5. Install npm dependencies, compile WASM, and verify TypeScript
 log "Installing npm dependencies..."
 npm install
 
-log "Compiling C++ WebAssembly engine..."
+log "Compiling C++ stdlib WebAssembly engine..."
 chmod +x scripts/build-wasm.sh
 npm run build:wasm
 

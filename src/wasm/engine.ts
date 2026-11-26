@@ -27,9 +27,11 @@ export const WasmEvent = {
   GAME_OVER: 1 << 5,
 } as const;
 
-/** Typed ABI surface exported by `src/cpp/game.cpp` via `extern "C"`. */
 interface WasmExports {
   memory: WebAssembly.Memory;
+  /** WASI reactor constructor entry point emitted by wasi-sdk (-mexec-model=reactor). */
+  _initialize?: () => void;
+  /** Legacy clang -nostdlib constructor entry point fallback. */
   __wasm_call_ctors?: () => void;
   init_game: (seed: number) => void;
   start_game: (seed: number) => void;
@@ -48,6 +50,20 @@ interface WasmExports {
   get_state: () => number;
   consume_events: () => number;
 }
+
+/** Minimal no-op WASI imports in case a future C++ stdlib feature references WASI stubs. */
+const WASI_STUB_IMPORTS: WebAssembly.Imports = {
+  wasi_snapshot_preview1: {
+    proc_exit: () => {},
+    fd_close: () => 0,
+    fd_seek: () => 0,
+    fd_write: () => 0,
+    environ_sizes_get: () => 0,
+    environ_get: () => 0,
+    clock_time_get: () => 0,
+    random_get: () => 0,
+  },
+};
 
 /**
  * Immutable-view snapshot of the C++ engine state for a single animation frame.
@@ -80,8 +96,10 @@ export class CppWasmEngine {
   private constructor(exports: WasmExports) {
     this.exports = exports;
 
-    // Run C++ global/static constructors emitted by clang/lld when present
-    if (typeof this.exports.__wasm_call_ctors === 'function') {
+    // Run C++ global/static constructors (e.g., std::mt19937 initialization)
+    if (typeof this.exports._initialize === 'function') {
+      this.exports._initialize();
+    } else if (typeof this.exports.__wasm_call_ctors === 'function') {
       this.exports.__wasm_call_ctors();
     }
 
@@ -107,16 +125,19 @@ export class CppWasmEngine {
     let instance: WebAssembly.Instance;
     if (typeof WebAssembly.instantiateStreaming === 'function') {
       try {
-        const result = await WebAssembly.instantiateStreaming(response.clone(), {});
+        const result = await WebAssembly.instantiateStreaming(
+          response.clone(),
+          WASI_STUB_IMPORTS
+        );
         instance = result.instance;
       } catch {
         const buffer = await response.arrayBuffer();
-        const result = await WebAssembly.instantiate(buffer, {});
+        const result = await WebAssembly.instantiate(buffer, WASI_STUB_IMPORTS);
         instance = result.instance;
       }
     } else {
       const buffer = await response.arrayBuffer();
-      const result = await WebAssembly.instantiate(buffer, {});
+      const result = await WebAssembly.instantiate(buffer, WASI_STUB_IMPORTS);
       instance = result.instance;
     }
 

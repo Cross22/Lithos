@@ -2,28 +2,26 @@
   "version": 4,
   "configurations": [
     {
-      "name": "Mac (Apple Silicon - Homebrew LLVM)",
-      "compilerPath": "/opt/homebrew/opt/llvm/bin/clang++",
+      "name": "Mac (wasi-sdk C++17 stdlib)",
+      "compilerPath": "${env:HOME}/.local/wasi-sdk/bin/clang++",
       "cppStandard": "c++17",
       "intelliSenseMode": "macos-clang-arm64",
-      "compilerArgs": ["--target=wasm32", "-nostdlib"],
-      "includePath": ["${workspaceFolder}/src/cpp/**"]
+      "includePath": [
+        "${workspaceFolder}/src/cpp/**",
+        "${env:HOME}/.local/wasi-sdk/share/wasi-sysroot/include/c++/v1",
+        "${env:HOME}/.local/wasi-sdk/share/wasi-sysroot/include"
+      ]
     },
     {
-      "name": "Mac (Intel - Homebrew LLVM)",
-      "compilerPath": "/usr/local/opt/llvm/bin/clang++",
-      "cppStandard": "c++17",
-      "intelliSenseMode": "macos-clang-x64",
-      "compilerArgs": ["--target=wasm32", "-nostdlib"],
-      "includePath": ["${workspaceFolder}/src/cpp/**"]
-    },
-    {
-      "name": "Linux (Clang WASM)",
-      "compilerPath": "/usr/bin/clang++",
+      "name": "Linux (wasi-sdk C++17 stdlib)",
+      "compilerPath": "/opt/wasi-sdk/bin/clang++",
       "cppStandard": "c++17",
       "intelliSenseMode": "linux-clang-x64",
-      "compilerArgs": ["--target=wasm32", "-nostdlib"],
-      "includePath": ["${workspaceFolder}/src/cpp/**"]
+      "includePath": [
+        "${workspaceFolder}/src/cpp/**",
+        "/opt/wasi-sdk/share/wasi-sysroot/include/c++/v1",
+        "/opt/wasi-sdk/share/wasi-sysroot/include"
+      ]
     }
   ]
 }

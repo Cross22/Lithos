@@ -1,113 +1,74 @@
 /**
- * 2D Canvas renderers for the 10x20 tile grid and 4x4 next-tile preview.
+ * Spritesheet-backed 2D Canvas renderers for the 10x20 tile grid and 4x4 next-tile preview.
  *
- * Reads cell byte codes directly from the C++ WebAssembly `renderGrid` and
- * `nextGrid` linear-memory views:
+ * Blits 64x64 square tile bitmaps from `/tiles-spritesheet.png` (512x64 horizontal strip):
+ *   - Sprite 0   : Alabaster flash bitmap (clearing rows)
+ *   - Sprites 1..7 : Mineral stone bitmaps for the 7 tetromino colors
+ *
+ * Reads cell byte codes directly from C++ WebAssembly linear memory:
  *   - 0        : Empty cell
- *   - 1..7     : Solid locked or active falling tetromino tile
- *   - 17..23   : Ghost landing projection (16 + pieceType)
- *   - 33..39   : Clearing row highlight flash (32 + pieceType)
+ *   - 1..7     : Solid locked or active falling tile (drawn at alpha 1.0)
+ *   - 17..23   : Ghost landing projection (drawn via alpha blending at alpha 0.28)
+ *   - 33..39   : Clearing row highlight flash (draws sprite 0 at alpha 1.0)
  */
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 
-interface TilePalette {
-  base: string;
-  light: string;
-  dark: string;
-  ghost: string;
+/** Pixel dimensions of each individual tile bitmap inside `/tiles-spritesheet.png`. */
+const SPRITE_CELL_PX = 64;
+
+/** Alpha opacity used when alpha-blending ghost tile bitmaps over the pit grid. */
+const GHOST_TILE_ALPHA = 0.28;
+
+/**
+ * Shared loader hook for the tile bitmap spritesheet.
+ * Caches a single `HTMLImageElement` instance across both canvases and triggers
+ * a React re-render once the PNG bitmap finishes decoding.
+ */
+function useTileSpritesheet(): HTMLImageElement | null {
+  const [sheet, setSheet] = useState<HTMLImageElement | null>(null);
+
+  useEffect(() => {
+    let active = true;
+    const img = new Image();
+    img.src = '/tiles-spritesheet.png';
+    img.onload = () => {
+      if (active) {
+        setSheet(img);
+      }
+    };
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  return sheet;
 }
 
 /**
- * Mineral-inspired palette for the 7 tetromino types (indices 1..7).
- * Each tile uses a main face plus lighter top/left and darker bottom/right
- * bevel shades, alongside an RGB triplet for translucent ghost outlines.
+ * Draws a single tile bitmap from the spritesheet onto `ctx` at `(dx, dy)`
+ * scaled to `destSize x destSize`, with optional alpha blending.
  */
-const TILE_PALETTE: Record<number, TilePalette> = {
-  1: { base: '#2CB1BC', light: '#65D6E0', dark: '#18757E', ghost: '44, 177, 188' }, // I - Mineral Teal
-  2: { base: '#D99B26', light: '#F3C15A', dark: '#966611', ghost: '217, 155, 38' },  // O - Ochre Amber
-  3: { base: '#8B68C8', light: '#B49AE4', dark: '#593D8E', ghost: '139, 104, 200' }, // T - Amethyst
-  4: { base: '#34A876', light: '#64CFA0', dark: '#1F6E4C', ghost: '52, 168, 118' },  // S - Jade
-  5: { base: '#D05353', light: '#EB8585', dark: '#8C2F2F', ghost: '208, 83, 83' },   // Z - Jasper Red
-  6: { base: '#467FD0', light: '#79A8EB', dark: '#29518E', ghost: '70, 127, 208' },  // J - Cobalt
-  7: { base: '#D4763B', light: '#EEA06E', dark: '#8F481C', ghost: '212, 118, 59' },  // L - Terracotta
-};
-
-/**
- * Draws a single beveled square tile at pixel coordinates `(x, y)`.
- * When `isClearing` is true, renders a solid alabaster flash frame during the
- * C++ 130ms line-clear animation window.
- */
-export function drawSquareTile(
+function blitTileSprite(
   ctx: CanvasRenderingContext2D,
-  x: number,
-  y: number,
-  size: number,
-  palette: TilePalette,
-  isClearing = false
-) {
-  // Subtle 1px+ mortar gap between adjacent tiles
-  const pad = Math.max(1, Math.floor(size * 0.04));
-  const innerX = x + pad;
-  const innerY = y + pad;
-  const innerSize = size - pad * 2;
-  const bevel = Math.max(2, Math.floor(innerSize * 0.14));
-
-  if (isClearing) {
-    ctx.fillStyle = '#F8FAFC';
-    ctx.fillRect(innerX, innerY, innerSize, innerSize);
-    return;
-  }
-
-  // Center tile face
-  ctx.fillStyle = palette.base;
-  ctx.fillRect(innerX, innerY, innerSize, innerSize);
-
-  // Top chamfer highlight
-  ctx.fillStyle = palette.light;
-  ctx.beginPath();
-  ctx.moveTo(innerX, innerY);
-  ctx.lineTo(innerX + innerSize, innerY);
-  ctx.lineTo(innerX + innerSize - bevel, innerY + bevel);
-  ctx.lineTo(innerX + bevel, innerY + bevel);
-  ctx.closePath();
-  ctx.fill();
-
-  // Left chamfer highlight
-  ctx.beginPath();
-  ctx.moveTo(innerX, innerY);
-  ctx.lineTo(innerX + bevel, innerY + bevel);
-  ctx.lineTo(innerX + bevel, innerY + innerSize - bevel);
-  ctx.lineTo(innerX, innerY + innerSize);
-  ctx.closePath();
-  ctx.fill();
-
-  // Bottom chamfer shadow
-  ctx.fillStyle = palette.dark;
-  ctx.beginPath();
-  ctx.moveTo(innerX, innerY + innerSize);
-  ctx.lineTo(innerX + bevel, innerY + innerSize - bevel);
-  ctx.lineTo(innerX + innerSize - bevel, innerY + innerSize - bevel);
-  ctx.lineTo(innerX + innerSize, innerY + innerSize);
-  ctx.closePath();
-  ctx.fill();
-
-  // Right chamfer shadow
-  ctx.beginPath();
-  ctx.moveTo(innerX + innerSize, innerY);
-  ctx.lineTo(innerX + innerSize, innerY + innerSize);
-  ctx.lineTo(innerX + innerSize - bevel, innerY + innerSize - bevel);
-  ctx.lineTo(innerX + innerSize - bevel, innerY + bevel);
-  ctx.closePath();
-  ctx.fill();
-
-  // Crisp 0.5px-aligned inner facet hairline
-  ctx.strokeStyle = 'rgba(255, 255, 255, 0.14)';
-  ctx.lineWidth = 1;
-  ctx.strokeRect(
-    innerX + bevel + 0.5,
-    innerY + bevel + 0.5,
-    Math.max(1, innerSize - bevel * 2 - 1),
-    Math.max(1, innerSize - bevel * 2 - 1)
+  sheet: HTMLImageElement,
+  spriteIndex: number,
+  dx: number,
+  dy: number,
+  destSize: number,
+  alpha = 1
+): void {
+  const sx = spriteIndex * SPRITE_CELL_PX;
+  ctx.globalAlpha = alpha;
+  ctx.drawImage(
+    sheet,
+    sx,
+    0,
+    SPRITE_CELL_PX,
+    SPRITE_CELL_PX,
+    dx,
+    dy,
+    destSize,
+    destSize
   );
 }
 
@@ -123,10 +84,12 @@ interface GameCanvasProps {
 }
 
 /**
- * Renders the 10x20 playing field on a HiDPI-aware HTML5 Canvas.
+ * Renders the 10x20 playing field on a HiDPI-aware HTML5 Canvas using the
+ * bitmap tile spritesheet.
  */
 export function GameCanvas({ tileSize, cols, rows, renderGrid, frameVersion }: GameCanvasProps) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
+  const spritesheet = useTileSpritesheet();
   const widthCss = tileSize * cols;
   const heightCss = tileSize * rows;
 
@@ -149,6 +112,8 @@ export function GameCanvas({ tileSize, cols, rows, renderGrid, frameVersion }: G
 
     ctx.save();
     ctx.scale(dpr, dpr);
+    ctx.imageSmoothingEnabled = true;
+    ctx.imageSmoothingQuality = 'high';
 
     // 1. Fill recessed dark slate pit
     ctx.fillStyle = '#0B0D10';
@@ -170,8 +135,8 @@ export function GameCanvas({ tileSize, cols, rows, renderGrid, frameVersion }: G
     }
     ctx.stroke();
 
-    // 3. Draw ghost landing guides, clearing flashes, and solid stone tiles
-    if (renderGrid && renderGrid.length >= cols * rows) {
+    // 3. Blit tile bitmaps from the spritesheet (solid, alpha-blended ghost, or flash)
+    if (spritesheet && renderGrid && renderGrid.length >= cols * rows) {
       for (let r = 0; r < rows; r++) {
         for (let c = 0; c < cols; c++) {
           const val = renderGrid[r * cols + c];
@@ -181,39 +146,23 @@ export function GameCanvas({ tileSize, cols, rows, renderGrid, frameVersion }: G
           const py = r * tileSize;
 
           if (val >= 17 && val <= 23) {
-            // Ghost piece projection (C++ encodes as 17..23)
-            const typeId = val - 16;
-            const pal = TILE_PALETTE[typeId];
-            if (!pal) continue;
-            const inset = Math.max(2, Math.floor(tileSize * 0.08));
-            ctx.fillStyle = `rgba(${pal.ghost}, 0.1)`;
-            ctx.fillRect(px + inset, py + inset, tileSize - inset * 2, tileSize - inset * 2);
-            ctx.strokeStyle = `rgba(${pal.ghost}, 0.55)`;
-            ctx.lineWidth = 1.25;
-            ctx.strokeRect(
-              px + inset + 0.5,
-              py + inset + 0.5,
-              tileSize - inset * 2 - 1,
-              tileSize - inset * 2 - 1
-            );
+            // Ghost landing projection: alpha-blend the matching color bitmap
+            const spriteIdx = val - 16;
+            blitTileSprite(ctx, spritesheet, spriteIdx, px, py, tileSize, GHOST_TILE_ALPHA);
           } else if (val >= 33) {
-            // Row currently in C++ line-clear flash state (33..39)
-            const typeId = val - 32;
-            const pal = TILE_PALETTE[typeId] ?? TILE_PALETTE[1];
-            drawSquareTile(ctx, px, py, tileSize, pal, true);
+            // Row currently in C++ line-clear flash state: blit alabaster sprite (index 0)
+            blitTileSprite(ctx, spritesheet, 0, px, py, tileSize, 1);
           } else if (val >= 1 && val <= 7) {
-            // Standard solid tetromino cell (1..7)
-            const pal = TILE_PALETTE[val];
-            if (pal) {
-              drawSquareTile(ctx, px, py, tileSize, pal, false);
-            }
+            // Standard solid tetromino cell (sprites 1..7)
+            blitTileSprite(ctx, spritesheet, val, px, py, tileSize, 1);
           }
         }
       }
+      ctx.globalAlpha = 1;
     }
 
     ctx.restore();
-  }, [tileSize, cols, rows, widthCss, heightCss, renderGrid, frameVersion]);
+  }, [tileSize, cols, rows, widthCss, heightCss, renderGrid, frameVersion, spritesheet]);
 
   return (
     <canvas
@@ -232,12 +181,12 @@ interface NextPieceCanvasProps {
 }
 
 /**
- * Renders the upcoming tetromino centered inside an 88x88px preview box.
- * Computes the tight bounding box of active cells so asymmetrical shapes
- * (such as the 4x1 I-piece or 2x2 O-piece) appear optically centered.
+ * Renders the upcoming tetromino centered inside an 88x88px preview box
+ * using the shared tile bitmap spritesheet.
  */
 export function NextPieceCanvas({ nextGrid, frameVersion }: NextPieceCanvasProps) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
+  const spritesheet = useTileSpritesheet();
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -255,16 +204,18 @@ export function NextPieceCanvas({ nextGrid, frameVersion }: NextPieceCanvasProps
 
     ctx.save();
     ctx.scale(dpr, dpr);
+    ctx.imageSmoothingEnabled = true;
+    ctx.imageSmoothingQuality = 'high';
     ctx.clearRect(0, 0, size, size);
 
-    if (nextGrid && nextGrid.length >= 16) {
+    if (spritesheet && nextGrid && nextGrid.length >= 16) {
       let minR = 4;
       let maxR = -1;
       let minC = 4;
       let maxC = -1;
       let pieceType = 0;
 
-      // Locate occupied bounding box within the 4x4 matrix
+      // Locate tight bounding box within the 4x4 matrix to optically center the piece
       for (let r = 0; r < 4; r++) {
         for (let c = 0; c < 4; c++) {
           const val = nextGrid[r * 4 + c];
@@ -278,8 +229,7 @@ export function NextPieceCanvas({ nextGrid, frameVersion }: NextPieceCanvasProps
         }
       }
 
-      if (pieceType > 0 && maxR >= minR && maxC >= minC) {
-        const pal = TILE_PALETTE[pieceType];
+      if (pieceType >= 1 && pieceType <= 7 && maxR >= minR && maxC >= minC) {
         const cellSize = 18;
         const spanW = (maxC - minC + 1) * cellSize;
         const spanH = (maxR - minR + 1) * cellSize;
@@ -288,23 +238,25 @@ export function NextPieceCanvas({ nextGrid, frameVersion }: NextPieceCanvasProps
 
         for (let r = minR; r <= maxR; r++) {
           for (let c = minC; c <= maxC; c++) {
-            if (nextGrid[r * 4 + c] > 0 && pal) {
-              drawSquareTile(
+            if (nextGrid[r * 4 + c] > 0) {
+              blitTileSprite(
                 ctx,
+                spritesheet,
+                pieceType,
                 offsetX + (c - minC) * cellSize,
                 offsetY + (r - minR) * cellSize,
                 cellSize,
-                pal,
-                false
+                1
               );
             }
           }
         }
+        ctx.globalAlpha = 1;
       }
     }
 
     ctx.restore();
-  }, [nextGrid, frameVersion]);
+  }, [nextGrid, frameVersion, spritesheet]);
 
   return (
     <canvas
