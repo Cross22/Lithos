@@ -8,55 +8,49 @@
 
 using namespace std;
 
-constexpr int32_t BOARD_W = 10;
-constexpr int32_t BOARD_H = 20;
-constexpr int32_t BOARD_SIZE = BOARD_W * BOARD_H;
-
-constexpr int32_t STATE_TITLE = 0;
-constexpr int32_t STATE_PLAYING = 1;
-constexpr int32_t STATE_PAUSED = 2;
-constexpr int32_t STATE_GAME_OVER = 3;
-
-// Key codes routed directly from browser KeyboardEvent.code mappings
-constexpr int32_t KEY_ENTER = 13;
-constexpr int32_t KEY_ESC = 27;
-constexpr int32_t KEY_SPACE = 32;
-constexpr int32_t KEY_LEFT = 37;
-constexpr int32_t KEY_UP = 38;
-constexpr int32_t KEY_RIGHT = 39;
-constexpr int32_t KEY_DOWN = 40;
-constexpr int32_t KEY_A = 65;
-constexpr int32_t KEY_D = 68;
-constexpr int32_t KEY_P = 80;
-constexpr int32_t KEY_R = 82;
-constexpr int32_t KEY_S = 83;
-constexpr int32_t KEY_W = 87;
-
-// Event bitmask consumed by frontend Web Audio synthesizer
-constexpr uint32_t EVT_MOVE = 0b0001;
-constexpr uint32_t EVT_ROTATE = 0b00010;
-constexpr uint32_t EVT_LOCK = 0b000100;
-constexpr uint32_t EVT_CLEAR = 0b0001000;
-constexpr uint32_t EVT_QUAD = 0b00010000;
-constexpr uint32_t EVT_GAME_OVER = 0b100000;
-
-template <typename T>
-class IntConvertible
+namespace CONFIG
 {
-public:
-  IntConvertible(T v) : val(v) {}
-  operator T()
-  {
-    return static_cast<T>(val);
-  }
-
-protected:
-  T val;
+  constexpr int32_t WIDTH = 10;
+  constexpr int32_t HEIGHT = 20;
+  constexpr int32_t SIZE = WIDTH * HEIGHT;
 };
 
-struct Event : IntConvertible<int32_t>
+struct State
 {
   enum Value
+  {
+    TITLE = 0,
+    PLAYING = 1,
+    PAUSED = 2,
+    GAME_OVER = 3,
+  };
+};
+
+// Key codes routed directly from browser KeyboardEvent.code mappings
+struct Key
+{
+  enum
+  {
+    ENTER = 13,
+    ESC = 27,
+    SPACE = 32,
+    LEFT = 37,
+    UP = 38,
+    RIGHT = 39,
+    DOWN = 40,
+    A = 65,
+    D = 68,
+    P = 80,
+    R = 82,
+    S = 83,
+    W = 87,
+  };
+};
+
+// Event bitmask consumed by frontend Web Audio synthesizer
+struct Event
+{
+  enum
   {
     MOVE = 1,
     ROTATE = 2,
@@ -65,7 +59,6 @@ struct Event : IntConvertible<int32_t>
     QUAD = 16,
     GAME_OVER = 32,
   };
-  Event(Value v) : IntConvertible(v) {}
 };
 
 // 7 tetrominoes (0..6 -> tile values 1..7),
@@ -92,25 +85,19 @@ constexpr array<array<int32_t, 2>, 8> KICKS = {{
     {{1, -1}},
 }};
 
-// Cast enum class to its underlying storage type
-constexpr auto toInt(__class_or_enum auto enm)
+class Game
 {
-  using BaseType = underlying_type_t<decltype(enm)>;
-  return static_cast<BaseType>(enm);
-}
-
-struct GameEngine
-{
-  array<uint8_t, BOARD_SIZE> board{};
-  array<uint8_t, BOARD_SIZE> render_grid{};
+public:
+  array<uint8_t, CONFIG::SIZE> board{};
+  array<uint8_t, CONFIG::SIZE> render_grid{};
   array<uint8_t, 16> next_grid{};
 
-  int32_t state = STATE_TITLE;
+  State::Value state = State::TITLE;
   int32_t score = 0;
   int32_t high_score = 0;
-  int32_t lines = 0;
   int32_t level = 1;
-  int32_t elapsed_ms = 0;
+  uint32_t lines = 0;
+  uint32_t elapsed_ms = 0;
 
   int32_t cur_type = 0;
   int32_t cur_rot = 0;
@@ -122,8 +109,8 @@ struct GameEngine
   size_t bag_index = 7;
   mt19937 rng{0x9E3779B9u};
 
-  int32_t gravity_timer_ms = 0;
-  int32_t clear_timer_ms = 0;
+  uint32_t gravity_timer_ms = 0;
+  uint32_t clear_timer_ms = 0;
   uint32_t clearing_rows_mask = 0;
 
   // Input state for smooth DAS / ARR
@@ -138,12 +125,12 @@ struct GameEngine
   uint32_t pending_events = 0;
 };
 
-GameEngine g;
+Game g;
 
 void refill_bag()
 {
-  iota(g.bag.begin(), g.bag.end(), static_cast<uint8_t>(0));
-  shuffle(g.bag.begin(), g.bag.end(), g.rng);
+  ranges::iota(g.bag, 0);
+  ranges::shuffle(g.bag, g.rng);
   g.bag_index = 0;
 }
 
@@ -173,11 +160,11 @@ bool fits(int32_t type, int32_t rot, int32_t px, int32_t py)
         continue;
       const int32_t bx = px + c;
       const int32_t by = py + r;
-      if (bx < 0 || bx >= BOARD_W || by >= BOARD_H)
+      if (bx < 0 || bx >= CONFIG::WIDTH || by >= CONFIG::HEIGHT)
       {
         return false;
       }
-      if (by >= 0 && g.board[static_cast<size_t>(by * BOARD_W + bx)] != 0)
+      if (by >= 0 && g.board[static_cast<size_t>(by * CONFIG::WIDTH + bx)] != 0)
       {
         return false;
       }
@@ -188,7 +175,7 @@ bool fits(int32_t type, int32_t rot, int32_t px, int32_t py)
 
 void update_next_grid()
 {
-  fill(g.next_grid.begin(), g.next_grid.end(), static_cast<uint8_t>(0));
+  ranges::fill(g.next_grid, 0);
   for (int32_t r = 0; r < 4; ++r)
   {
     for (int32_t c = 0; c < 4; ++c)
@@ -203,13 +190,13 @@ void update_next_grid()
 
 void update_render_grid()
 {
-  for (int32_t r = 0; r < BOARD_H; ++r)
+  for (int32_t r = 0; r < CONFIG::HEIGHT; ++r)
   {
     const bool is_clearing =
         (g.clear_timer_ms > 0) && ((g.clearing_rows_mask & (1u << r)) != 0);
-    for (int32_t c = 0; c < BOARD_W; ++c)
+    for (int32_t c = 0; c < CONFIG::WIDTH; ++c)
     {
-      const size_t idx = static_cast<size_t>(r * BOARD_W + c);
+      const size_t idx = static_cast<size_t>(r * CONFIG::WIDTH + c);
       const uint8_t cell = g.board[idx];
       if (is_clearing && cell != 0)
       {
@@ -222,7 +209,7 @@ void update_render_grid()
     }
   }
 
-  if (g.state == STATE_PLAYING && g.clear_timer_ms == 0)
+  if (g.state == State::PLAYING && g.clear_timer_ms == 0)
   {
     // Project ghost landing position
     int32_t ghost_y = g.cur_y;
@@ -239,9 +226,9 @@ void update_render_grid()
           continue;
         const int32_t bx = g.cur_x + c;
         const int32_t gy = ghost_y + r;
-        if (bx >= 0 && bx < BOARD_W && gy >= 0 && gy < BOARD_H)
+        if (bx >= 0 && bx < CONFIG::WIDTH && gy >= 0 && gy < CONFIG::HEIGHT)
         {
-          const size_t idx = static_cast<size_t>(gy * BOARD_W + bx);
+          const size_t idx = static_cast<size_t>(gy * CONFIG::WIDTH + bx);
           if (g.render_grid[idx] == 0)
           {
             g.render_grid[idx] = static_cast<uint8_t>(17 + g.cur_type);
@@ -259,9 +246,9 @@ void update_render_grid()
           continue;
         const int32_t bx = g.cur_x + c;
         const int32_t by = g.cur_y + r;
-        if (bx >= 0 && bx < BOARD_W && by >= 0 && by < BOARD_H)
+        if (bx >= 0 && bx < CONFIG::WIDTH && by >= 0 && by < CONFIG::HEIGHT)
         {
-          g.render_grid[static_cast<size_t>(by * BOARD_W + bx)] =
+          g.render_grid[static_cast<size_t>(by * CONFIG::WIDTH + bx)] =
               static_cast<uint8_t>(g.cur_type + 1);
         }
       }
@@ -281,16 +268,16 @@ void spawn_next_piece()
 
   if (!fits(g.cur_type, g.cur_rot, g.cur_x, g.cur_y))
   {
-    g.state = STATE_GAME_OVER;
-    g.pending_events |= EVT_GAME_OVER;
+    g.state = State::GAME_OVER;
+    g.pending_events |= Event::GAME_OVER;
   }
 }
 
 void collapse_cleared_rows()
 {
   int32_t cleared = 0;
-  int32_t write_row = BOARD_H - 1;
-  for (int32_t r = BOARD_H - 1; r >= 0; --r)
+  int32_t write_row = CONFIG::HEIGHT - 1;
+  for (int32_t r = CONFIG::HEIGHT - 1; r >= 0; --r)
   {
     if ((g.clearing_rows_mask & (1u << r)) != 0)
     {
@@ -300,17 +287,17 @@ void collapse_cleared_rows()
     {
       if (write_row != r)
       {
-        const auto src_begin = g.board.begin() + r * BOARD_W;
-        const auto dst_begin = g.board.begin() + write_row * BOARD_W;
-        copy(src_begin, src_begin + BOARD_W, dst_begin);
+        const auto src_begin = g.board.begin() + r * CONFIG::WIDTH;
+        const auto dst_begin = g.board.begin() + write_row * CONFIG::WIDTH;
+        copy(src_begin, src_begin + CONFIG::WIDTH, dst_begin);
       }
       --write_row;
     }
   }
   while (write_row >= 0)
   {
-    const auto row_begin = g.board.begin() + write_row * BOARD_W;
-    fill(row_begin, row_begin + BOARD_W, static_cast<uint8_t>(0));
+    const auto row_begin = g.board.begin() + write_row * CONFIG::WIDTH;
+    fill(row_begin, row_begin + CONFIG::WIDTH, static_cast<uint8_t>(0));
     --write_row;
   }
 
@@ -322,7 +309,7 @@ void collapse_cleared_rows()
     g.high_score = max(g.high_score, g.score);
     g.lines += cleared;
     g.level = 1 + (g.lines / 10);
-    g.pending_events |= (cleared >= 4) ? EVT_QUAD : EVT_CLEAR;
+    g.pending_events |= (cleared >= 4) ? Event::QUAD : Event::CLEAR;
   }
 
   g.clearing_rows_mask = 0;
@@ -345,9 +332,9 @@ void lock_current_piece()
       {
         overflow = true;
       }
-      else if (bx >= 0 && bx < BOARD_W && by < BOARD_H)
+      else if (bx >= 0 && bx < CONFIG::WIDTH && by < CONFIG::HEIGHT)
       {
-        g.board[static_cast<size_t>(by * BOARD_W + bx)] =
+        g.board[static_cast<size_t>(by * CONFIG::WIDTH + bx)] =
             static_cast<uint8_t>(g.cur_type + 1);
       }
     }
@@ -355,18 +342,18 @@ void lock_current_piece()
 
   if (overflow)
   {
-    g.state = STATE_GAME_OVER;
-    g.pending_events |= EVT_GAME_OVER;
+    g.state = State::GAME_OVER;
+    g.pending_events |= Event::GAME_OVER;
     update_render_grid();
     return;
   }
 
   uint32_t mask = 0;
   int32_t count = 0;
-  for (int32_t r = 0; r < BOARD_H; ++r)
+  for (int32_t r = 0; r < CONFIG::HEIGHT; ++r)
   {
-    const auto row_begin = g.board.begin() + r * BOARD_W;
-    const bool full = all_of(row_begin, row_begin + BOARD_W, [](uint8_t cell)
+    const auto row_begin = g.board.begin() + r * CONFIG::WIDTH;
+    const bool full = all_of(row_begin, row_begin + CONFIG::WIDTH, [](uint8_t cell)
                              { return cell != 0; });
     if (full)
     {
@@ -375,7 +362,7 @@ void lock_current_piece()
     }
   }
 
-  g.pending_events |= EVT_LOCK;
+  g.pending_events |= Event::LOCK;
   if (count > 0)
   {
     g.clearing_rows_mask = mask;
@@ -395,7 +382,7 @@ bool try_move(int32_t dx, int32_t dy)
     g.cur_y += dy;
     if (dx != 0)
     {
-      g.pending_events |= EVT_MOVE;
+      g.pending_events |= Event::MOVE;
     }
     return true;
   }
@@ -414,7 +401,7 @@ bool try_rotate_cw()
       g.cur_rot = next_rot;
       g.cur_x = kx;
       g.cur_y = ky;
-      g.pending_events |= EVT_ROTATE;
+      g.pending_events |= Event::ROTATE;
       return true;
     }
   }
@@ -445,8 +432,8 @@ void reset_board_and_start(uint32_t seed)
   {
     g.rng.seed(seed);
   }
-  fill(g.board.begin(), g.board.end(), static_cast<uint8_t>(0));
-  fill(g.render_grid.begin(), g.render_grid.end(), static_cast<uint8_t>(0));
+  ranges::fill(g.board, 0);
+  ranges::fill(g.render_grid, 0);
 
   g.score = 0;
   g.lines = 0;
@@ -466,7 +453,7 @@ void reset_board_and_start(uint32_t seed)
   g.bag_index = g.bag.size();
 
   g.next_type = draw_piece_from_bag();
-  g.state = STATE_PLAYING;
+  g.state = State::PLAYING;
   spawn_next_piece();
   update_render_grid();
 }

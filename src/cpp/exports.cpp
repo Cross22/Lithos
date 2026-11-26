@@ -17,7 +17,7 @@ extern "C"
     fill(g.board.begin(), g.board.end(), static_cast<uint8_t>(0));
     fill(g.render_grid.begin(), g.render_grid.end(), static_cast<uint8_t>(0));
 
-    g.state = STATE_TITLE;
+    g.state = State::TITLE;
     g.score = 0;
     g.lines = 0;
     g.level = 1;
@@ -37,17 +37,17 @@ extern "C"
   WASM_EXPORT(toggle_pause)
   void toggle_pause()
   {
-    if (g.state == STATE_PLAYING)
+    if (g.state == State::PLAYING)
     {
-      g.state = STATE_PAUSED;
+      g.state = State::PAUSED;
       g.hold_left = false;
       g.hold_right = false;
       g.hold_down = false;
       g.das_dir = 0;
     }
-    else if (g.state == STATE_PAUSED)
+    else if (g.state == State::PAUSED)
     {
-      g.state = STATE_PLAYING;
+      g.state = State::PLAYING;
     }
     update_render_grid();
   }
@@ -59,32 +59,32 @@ extern "C"
 
     if (down)
     {
-      if (key_code == KEY_P || key_code == KEY_ESC)
+      if (key_code == Key::P || key_code == Key::ESC)
       {
-        if (g.state == STATE_PLAYING || g.state == STATE_PAUSED)
+        if (g.state == State::PLAYING || g.state == State::PAUSED)
         {
           toggle_pause();
         }
         return;
       }
-      if (key_code == KEY_R)
+      if (key_code == Key::R)
       {
         reset_board_and_start(static_cast<uint32_t>(g.rng()) ^
                               static_cast<uint32_t>(g.elapsed_ms + 1));
         return;
       }
-      if (key_code == KEY_ENTER && (g.state == STATE_TITLE || g.state == STATE_GAME_OVER))
+      if (key_code == Key::ENTER && (g.state == State::TITLE || g.state == State::GAME_OVER))
       {
         reset_board_and_start(static_cast<uint32_t>(g.rng()) ^ 0xA5A5A5A5u);
         return;
       }
     }
 
-    const bool is_left = (key_code == KEY_LEFT || key_code == KEY_A);
-    const bool is_right = (key_code == KEY_RIGHT || key_code == KEY_D);
-    const bool is_down_key = (key_code == KEY_DOWN || key_code == KEY_S);
-    const bool is_rotate = (key_code == KEY_UP || key_code == KEY_W);
-    const bool is_hard_drop = (key_code == KEY_SPACE);
+    const bool is_left = (key_code == Key::LEFT || key_code == Key::A);
+    const bool is_right = (key_code == Key::RIGHT || key_code == Key::D);
+    const bool is_down_key = (key_code == Key::DOWN || key_code == Key::S);
+    const bool is_rotate = (key_code == Key::UP || key_code == Key::W);
+    const bool is_hard_drop = (key_code == Key::SPACE);
 
     if (is_left)
     {
@@ -94,7 +94,7 @@ extern "C"
         g.das_dir = -1;
         g.das_timer_ms = 0;
         g.arr_timer_ms = 0;
-        if (g.state == STATE_PLAYING && g.clear_timer_ms == 0)
+        if (g.state == State::PLAYING && g.clear_timer_ms == 0)
         {
           try_move(-1, 0);
         }
@@ -122,7 +122,7 @@ extern "C"
         g.das_dir = 1;
         g.das_timer_ms = 0;
         g.arr_timer_ms = 0;
-        if (g.state == STATE_PLAYING && g.clear_timer_ms == 0)
+        if (g.state == State::PLAYING && g.clear_timer_ms == 0)
         {
           try_move(1, 0);
         }
@@ -148,7 +148,7 @@ extern "C"
       {
         g.hold_down = true;
         g.soft_drop_timer_ms = 0;
-        if (g.state == STATE_PLAYING && g.clear_timer_ms == 0)
+        if (g.state == State::PLAYING && g.clear_timer_ms == 0)
         {
           if (try_move(0, 1))
           {
@@ -165,18 +165,18 @@ extern "C"
     }
     else if (is_rotate && down)
     {
-      if (g.state == STATE_PLAYING && g.clear_timer_ms == 0)
+      if (g.state == State::PLAYING && g.clear_timer_ms == 0)
       {
         try_rotate_cw();
       }
     }
     else if (is_hard_drop && down)
     {
-      if (g.state == STATE_PLAYING && g.clear_timer_ms == 0)
+      if (g.state == State::PLAYING && g.clear_timer_ms == 0)
       {
         hard_drop();
       }
-      else if (g.state == STATE_TITLE || g.state == STATE_GAME_OVER)
+      else if (g.state == State::TITLE || g.state == State::GAME_OVER)
       {
         reset_board_and_start(static_cast<uint32_t>(g.rng()) ^ 0x5A5A5A5Au);
       }
@@ -190,7 +190,7 @@ extern "C"
   {
     dt_ms = clamp(dt_ms, 0, 100);
 
-    if (g.state != STATE_PLAYING)
+    if (g.state != State::PLAYING)
     {
       update_render_grid();
       return;
@@ -265,10 +265,10 @@ extern "C"
   const uint8_t *get_next_grid() { return g.next_grid.data(); }
 
   WASM_EXPORT(get_board_width)
-  int32_t get_board_width() { return BOARD_W; }
+  int32_t get_board_width() { return CONFIG::WIDTH; }
 
   WASM_EXPORT(get_board_height)
-  int32_t get_board_height() { return BOARD_H; }
+  int32_t get_board_height() { return CONFIG::HEIGHT; }
 
   WASM_EXPORT(get_score)
   int32_t get_score() { return g.score; }
