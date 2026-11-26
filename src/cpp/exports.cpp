@@ -4,34 +4,21 @@
 
 #define WASM_EXPORT(name) __attribute__((export_name(#name)))
 
+Game g;
+
 extern "C"
 {
 
   WASM_EXPORT(init_game)
   void init_game(uint32_t seed)
   {
-    if (seed != 0)
-    {
-      g.rng.seed(seed);
-    }
-    fill(g.board.begin(), g.board.end(), static_cast<uint8_t>(0));
-    fill(g.render_grid.begin(), g.render_grid.end(), static_cast<uint8_t>(0));
-
-    g.state = State::TITLE;
-    g.score = 0;
-    g.lines = 0;
-    g.level = 1;
-    g.elapsed_ms = 0;
-    g.bag_index = g.bag.size();
-    g.next_type = draw_piece_from_bag();
-    update_next_grid();
-    update_render_grid();
+    g.init(seed);
   }
 
   WASM_EXPORT(start_game)
   void start_game(uint32_t seed)
   {
-    reset_board_and_start(seed);
+    g.init_and_start(seed);
   }
 
   WASM_EXPORT(toggle_pause)
@@ -49,7 +36,7 @@ extern "C"
     {
       g.state = State::PLAYING;
     }
-    update_render_grid();
+    g.update_render_grid();
   }
 
   WASM_EXPORT(on_key_event)
@@ -69,21 +56,20 @@ extern "C"
       }
       if (key_code == Key::R)
       {
-        reset_board_and_start(static_cast<uint32_t>(g.rng()) ^
-                              static_cast<uint32_t>(g.elapsed_ms + 1));
+        g.init_and_start(g.elapsed_ms);
         return;
       }
       if (key_code == Key::ENTER && (g.state == State::TITLE || g.state == State::GAME_OVER))
       {
-        reset_board_and_start(static_cast<uint32_t>(g.rng()) ^ 0xA5A5A5A5u);
+        g.init_and_start(g.elapsed_ms);
         return;
       }
     }
 
-    const bool is_left = (key_code == Key::LEFT || key_code == Key::A);
-    const bool is_right = (key_code == Key::RIGHT || key_code == Key::D);
-    const bool is_down_key = (key_code == Key::DOWN || key_code == Key::S);
-    const bool is_rotate = (key_code == Key::UP || key_code == Key::W);
+    const bool is_left = Key::isLeft(key_code);
+    const bool is_right = Key::isRight(key_code);
+    const bool is_down_key = Key::isDown(key_code);
+    const bool is_rotate = Key::isUp(key_code);
     const bool is_hard_drop = (key_code == Key::SPACE);
 
     if (is_left)
@@ -96,7 +82,7 @@ extern "C"
         g.arr_timer_ms = 0;
         if (g.state == State::PLAYING && g.clear_timer_ms == 0)
         {
-          try_move(-1, 0);
+          g.try_move(-1, 0);
         }
       }
       else if (!down)
@@ -124,7 +110,7 @@ extern "C"
         g.arr_timer_ms = 0;
         if (g.state == State::PLAYING && g.clear_timer_ms == 0)
         {
-          try_move(1, 0);
+          g.try_move(1, 0);
         }
       }
       else if (!down)
@@ -150,7 +136,7 @@ extern "C"
         g.soft_drop_timer_ms = 0;
         if (g.state == State::PLAYING && g.clear_timer_ms == 0)
         {
-          if (try_move(0, 1))
+          if (g.try_move(0, 1))
           {
             g.score += 1;
             g.high_score = max(g.high_score, g.score);
@@ -167,22 +153,22 @@ extern "C"
     {
       if (g.state == State::PLAYING && g.clear_timer_ms == 0)
       {
-        try_rotate_cw();
+        g.try_rotate_cw();
       }
     }
     else if (is_hard_drop && down)
     {
       if (g.state == State::PLAYING && g.clear_timer_ms == 0)
       {
-        hard_drop();
+        g.hard_drop();
       }
       else if (g.state == State::TITLE || g.state == State::GAME_OVER)
       {
-        reset_board_and_start(static_cast<uint32_t>(g.rng()) ^ 0x5A5A5A5Au);
+        g.init_and_start(g.elapsed_ms);
       }
     }
 
-    update_render_grid();
+    g.update_render_grid();
   }
 
   WASM_EXPORT(tick)
@@ -192,7 +178,7 @@ extern "C"
 
     if (g.state != State::PLAYING)
     {
-      update_render_grid();
+      g.update_render_grid();
       return;
     }
 
@@ -203,9 +189,9 @@ extern "C"
       g.clear_timer_ms -= dt_ms;
       if (g.clear_timer_ms <= 0)
       {
-        collapse_cleared_rows();
+        g.collapse_cleared_rows();
       }
-      update_render_grid();
+      g.update_render_grid();
       return;
     }
 
@@ -218,7 +204,7 @@ extern "C"
         while (g.arr_timer_ms >= 38)
         {
           g.arr_timer_ms -= 38;
-          try_move(g.das_dir, 0);
+          g.try_move(g.das_dir, 0);
         }
       }
     }
@@ -229,7 +215,7 @@ extern "C"
       while (g.soft_drop_timer_ms >= 42)
       {
         g.soft_drop_timer_ms -= 42;
-        if (try_move(0, 1))
+        if (g.try_move(0, 1))
         {
           g.score += 1;
           g.high_score = max(g.high_score, g.score);
@@ -237,25 +223,25 @@ extern "C"
         }
         else
         {
-          lock_current_piece();
-          update_render_grid();
+          g.lock_current_piece();
+          g.update_render_grid();
           return;
         }
       }
     }
 
     g.gravity_timer_ms += dt_ms;
-    const int32_t interval = gravity_interval_ms();
+    const int32_t interval = g.gravity_interval_ms();
     if (g.gravity_timer_ms >= interval)
     {
       g.gravity_timer_ms -= interval;
-      if (!try_move(0, 1))
+      if (!g.try_move(0, 1))
       {
-        lock_current_piece();
+        g.lock_current_piece();
       }
     }
 
-    update_render_grid();
+    g.update_render_grid();
   }
 
   WASM_EXPORT(get_render_grid)
