@@ -23,3 +23,5 @@ Thumbs.db
 npm-debug.log*
 .env*
 !.env.example
+public/game.wasm
+package-lock.json
