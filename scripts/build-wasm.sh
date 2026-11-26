@@ -2,7 +2,7 @@
 #
 # scripts/build-wasm.sh
 #
-# Cross-platform C++17 (with C++ Standard Library) -> WebAssembly compiler
+# Cross-platform C++23 (with C++ Standard Library) -> WebAssembly compiler
 # wrapper for macOS (Apple Silicon & Intel) and Linux.
 #
 # Uses wasi-sdk so C++ code can freely use <array>, <algorithm>, <cstdint>,
@@ -44,10 +44,10 @@ fi
 mkdir -p public
 "$WASI_SDK_DIR/bin/clang++" \
   -O3 \
-  -std=c++17 \
+  -std=c++23 \
   -mexec-model=reactor \
   -fno-exceptions \
   -o public/game.wasm \
-  src/cpp/game.cpp
+  src/cpp/exports.cpp
 
 echo "Compiled public/game.wasm ($(wc -c < public/game.wasm | tr -d ' ') bytes) via $WASI_SDK_DIR"

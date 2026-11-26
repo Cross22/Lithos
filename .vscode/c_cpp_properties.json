@@ -2,9 +2,9 @@
   "version": 4,
   "configurations": [
     {
-      "name": "Mac (wasi-sdk C++17 stdlib)",
+      "name": "Mac (wasi-sdk C++23 stdlib)",
       "compilerPath": "${env:HOME}/.local/wasi-sdk/bin/clang++",
-      "cppStandard": "c++17",
+      "cppStandard": "c++23",
       "intelliSenseMode": "macos-clang-arm64",
       "includePath": [
         "${workspaceFolder}/src/cpp/**",
@@ -13,9 +13,9 @@
       ]
     },
     {
-      "name": "Linux (wasi-sdk C++17 stdlib)",
+      "name": "Linux (wasi-sdk C++23 stdlib)",
       "compilerPath": "/opt/wasi-sdk/bin/clang++",
-      "cppStandard": "c++17",
+      "cppStandard": "c++23",
       "intelliSenseMode": "linux-clang-x64",
       "includePath": [
         "${workspaceFolder}/src/cpp/**",
