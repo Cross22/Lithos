@@ -40,6 +40,34 @@ constexpr uint32_t EVT_CLEAR = 0b0001000;
 constexpr uint32_t EVT_QUAD = 0b00010000;
 constexpr uint32_t EVT_GAME_OVER = 0b100000;
 
+template <typename T>
+class IntConvertible
+{
+public:
+  IntConvertible(T v) : val(v) {}
+  operator T()
+  {
+    return static_cast<T>(val);
+  }
+
+protected:
+  T val;
+};
+
+struct Event : IntConvertible<int32_t>
+{
+  enum Value
+  {
+    MOVE = 1,
+    ROTATE = 2,
+    LOCK = 4,
+    CLEAR = 8,
+    QUAD = 16,
+    GAME_OVER = 32,
+  };
+  Event(Value v) : IntConvertible(v) {}
+};
+
 // 7 tetrominoes (0..6 -> tile values 1..7),
 // 4 rotations, 4x4 bitmask packed in 16 bits
 constexpr array<array<uint16_t, 4>, 7> SHAPES = {{
