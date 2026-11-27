@@ -1,3 +1,5 @@
+#pragma once
+
 #include <algorithm>
 #include <array>
 #include <cstdint>
@@ -5,6 +7,7 @@
 #include <random>
 #include <concepts>
 #include <type_traits>
+#include "helpers.h"
 
 using namespace std;
 
@@ -13,113 +16,6 @@ namespace CONFIG
   constexpr int32_t WIDTH = 10;
   constexpr int32_t HEIGHT = 20;
   constexpr int32_t SIZE = WIDTH * HEIGHT;
-};
-
-struct State
-{
-  enum Value
-  {
-    TITLE = 0,
-    PLAYING = 1,
-    PAUSED = 2,
-    GAME_OVER = 3,
-  };
-};
-
-// Key codes routed directly from browser KeyboardEvent.code mappings
-struct Key
-{
-  enum
-  {
-    ENTER = 13,
-    ESC = 27,
-    SPACE = 32,
-    LEFT = 37,
-    UP = 38,
-    RIGHT = 39,
-    DOWN = 40,
-    A = 65,
-    D = 68,
-    P = 80,
-    R = 82,
-    S = 83,
-    W = 87,
-  };
-
-  static bool isUp(int32_t key) { return key == UP || key == W; }
-  static bool isLeft(int32_t key) { return key == LEFT || key == A; }
-  static bool isDown(int32_t key) { return key == DOWN || key == S; }
-  static bool isRight(int32_t key) { return key == RIGHT || key == D; }
-};
-
-// Event bitmask consumed by frontend Web Audio synthesizer
-struct Event
-{
-  enum
-  {
-    MOVE = 1,
-    ROTATE = 2,
-    LOCK = 4,
-    CLEAR = 8,
-    QUAD = 16,
-    GAME_OVER = 32,
-  };
-};
-
-template <typename T, size_t X, size_t Y>
-using array2d = array<array<T, X>, Y>;
-
-// 7 tetrominoes (0..6 -> tile values 1..7),
-// 4 rotations, 4x4 bitmask packed in 16 bits
-// constexpr array<array<uint16_t, 4>, 7> SHAPES = {{
-constexpr array2d<uint16_t, 4, 7> SHAPES = {{
-    {{0x0F00, 0x2222, 0x00F0, 0x4444}}, // 0: I
-    {{0x6600, 0x6600, 0x6600, 0x6600}}, // 1: O
-    {{0x4E00, 0x4640, 0x0E40, 0x4C40}}, // 2: T
-    {{0x6C00, 0x4620, 0x06C0, 0x8C40}}, // 3: S
-    {{0xC600, 0x2640, 0x0C60, 0x4C80}}, // 4: Z
-    {{0x8E00, 0x6440, 0x0E20, 0x44C0}}, // 5: J
-    {{0x2E00, 0x4460, 0x0E80, 0xC440}}, // 6: L
-}};
-
-// Wall-kick candidate offsets (dx, dy)
-constexpr array<array<int32_t, 2>, 8> KICKS = {{
-    {{0, 0}},
-    {{-1, 0}},
-    {{1, 0}},
-    {{0, -1}},
-    {{-2, 0}},
-    {{2, 0}},
-    {{-1, -1}},
-    {{1, -1}},
-}};
-
-class Bag
-{
-public:
-  Bag(uint32_t seed = 0x9E3779B9u) : rng(seed), index(bag.size()) {}
-  int32_t draw_piece()
-  {
-    if (index >= bag.size())
-    {
-      refill();
-    }
-    return static_cast<int32_t>(bag[index++]);
-  }
-
-protected:
-  void refill()
-  {
-    // Set bag[0..7] to [0..7], then shuffle those values
-    ranges::iota(bag, 0);
-    ranges::shuffle(bag, rng);
-    index = 0;
-  }
-
-protected:
-  array<uint8_t, 7> bag;
-  size_t index = 7;
-  mt19937 rng;
 };
 
 class Game
@@ -260,6 +156,12 @@ public:
     }
   }
 
+  // Active and not animating row clearing
+  bool waitingForInput() const
+  {
+    return (state == State::PLAYING && clear_timer_ms == 0);
+  }
+
   void update_render_grid()
   {
     for (int32_t r = 0; r < CONFIG::HEIGHT; ++r)
@@ -281,48 +183,49 @@ public:
       }
     }
 
-    if (state == State::PLAYING && clear_timer_ms == 0)
+    if (!waitingForInput())
     {
-      // Project ghost landing position
-      int32_t ghost_y = cur_y;
-      while (fits(cur_type, cur_rot, cur_x, ghost_y + 1))
-      {
-        ++ghost_y;
-      }
+      return;
+    }
+    // Project ghost landing position
+    int32_t ghost_y = cur_y;
+    while (fits(cur_type, cur_rot, cur_x, ghost_y + 1))
+    {
+      ++ghost_y;
+    }
 
-      for (int32_t r = 0; r < 4; ++r)
+    for (int32_t r = 0; r < 4; ++r)
+    {
+      for (int32_t c = 0; c < 4; ++c)
       {
-        for (int32_t c = 0; c < 4; ++c)
+        if (!shape_cell(cur_type, cur_rot, r, c))
+          continue;
+        const int32_t bx = cur_x + c;
+        const int32_t gy = ghost_y + r;
+        if (bx >= 0 && bx < CONFIG::WIDTH && gy >= 0 && gy < CONFIG::HEIGHT)
         {
-          if (!shape_cell(cur_type, cur_rot, r, c))
-            continue;
-          const int32_t bx = cur_x + c;
-          const int32_t gy = ghost_y + r;
-          if (bx >= 0 && bx < CONFIG::WIDTH && gy >= 0 && gy < CONFIG::HEIGHT)
+          const size_t idx = static_cast<size_t>(gy * CONFIG::WIDTH + bx);
+          if (render_grid[idx] == 0)
           {
-            const size_t idx = static_cast<size_t>(gy * CONFIG::WIDTH + bx);
-            if (render_grid[idx] == 0)
-            {
-              render_grid[idx] = static_cast<uint8_t>(17 + cur_type);
-            }
+            render_grid[idx] = static_cast<uint8_t>(17 + cur_type);
           }
         }
       }
+    }
 
-      // Active falling piece overwrites ghost
-      for (int32_t r = 0; r < 4; ++r)
+    // Active falling piece overwrites ghost
+    for (int32_t r = 0; r < 4; ++r)
+    {
+      for (int32_t c = 0; c < 4; ++c)
       {
-        for (int32_t c = 0; c < 4; ++c)
+        if (!shape_cell(cur_type, cur_rot, r, c))
+          continue;
+        const int32_t bx = cur_x + c;
+        const int32_t by = cur_y + r;
+        if (bx >= 0 && bx < CONFIG::WIDTH && by >= 0 && by < CONFIG::HEIGHT)
         {
-          if (!shape_cell(cur_type, cur_rot, r, c))
-            continue;
-          const int32_t bx = cur_x + c;
-          const int32_t by = cur_y + r;
-          if (bx >= 0 && bx < CONFIG::WIDTH && by >= 0 && by < CONFIG::HEIGHT)
-          {
-            render_grid[static_cast<size_t>(by * CONFIG::WIDTH + bx)] =
-                static_cast<uint8_t>(cur_type + 1);
-          }
+          render_grid[static_cast<size_t>(by * CONFIG::WIDTH + bx)] =
+              static_cast<uint8_t>(cur_type + 1);
         }
       }
     }
@@ -448,6 +351,11 @@ public:
 
   bool try_move(int32_t dx, int32_t dy)
   {
+    if (!waitingForInput())
+    {
+      return false;
+    }
+
     if (fits(cur_type, cur_rot, cur_x + dx, cur_y + dy))
     {
       cur_x += dx;
@@ -463,6 +371,10 @@ public:
 
   bool try_rotate_cw()
   {
+    if (!waitingForInput())
+    {
+      return false;
+    }
     const int32_t next_rot = (cur_rot + 1) & 3;
     for (const auto &kick : KICKS)
     {
@@ -482,6 +394,9 @@ public:
 
   void hard_drop()
   {
+    if (!waitingForInput())
+      return;
+
     int32_t dropped = 0;
     while (fits(cur_type, cur_rot, cur_x, cur_y + 1))
     {
@@ -500,6 +415,8 @@ public:
 
   void onKeyPressed(int32_t key_code)
   {
+    key_code = Key::normalize(key_code);
+
     if (key_code == Key::P || key_code == Key::ESC)
     {
       togglePause();
@@ -520,13 +437,8 @@ public:
       }
     }
 
-    const bool is_left = Key::isLeft(key_code);
-    const bool is_right = Key::isRight(key_code);
-    const bool is_down_key = Key::isDown(key_code);
-    const bool is_rotate = Key::isUp(key_code);
     const bool is_hard_drop = (key_code == Key::SPACE);
-
-    if (is_left)
+    if (key_code == Key::LEFT)
     {
       if (!hold_left)
       {
@@ -534,13 +446,10 @@ public:
         das_dir = -1;
         das_timer_ms = 0;
         arr_timer_ms = 0;
-        if (state == State::PLAYING && clear_timer_ms == 0)
-        {
-          try_move(-1, 0);
-        }
+        try_move(-1, 0);
       }
     }
-    else if (is_right)
+    else if (key_code == Key::RIGHT)
     {
       if (!hold_right)
       {
@@ -548,42 +457,30 @@ public:
         das_dir = 1;
         das_timer_ms = 0;
         arr_timer_ms = 0;
-        if (state == State::PLAYING && clear_timer_ms == 0)
-        {
-          try_move(1, 0);
-        }
+        try_move(1, 0);
       }
     }
-    else if (is_down_key)
+    else if (key_code == Key::DOWN)
     {
       if (!hold_down)
       {
         hold_down = true;
         soft_drop_timer_ms = 0;
-        if (state == State::PLAYING && clear_timer_ms == 0)
+        if (try_move(0, 1))
         {
-          if (try_move(0, 1))
-          {
-            score += 1;
-            high_score = max(high_score, score);
-            gravity_timer_ms = 0;
-          }
+          score += 1;
+          high_score = max(high_score, score);
+          gravity_timer_ms = 0;
         }
       }
     }
-    else if (is_rotate)
+    else if (key_code == Key::UP)
     {
-      if (state == State::PLAYING && clear_timer_ms == 0)
-      {
-        try_rotate_cw();
-      }
+      try_rotate_cw();
     }
     else if (is_hard_drop)
     {
-      if (state == State::PLAYING && clear_timer_ms == 0)
-      {
-        hard_drop();
-      }
+      hard_drop();
     }
 
     update_render_grid();
@@ -591,15 +488,10 @@ public:
 
   void onKeyReleased(int32_t key_code)
   {
-    const bool is_left = Key::isLeft(key_code);
-    const bool is_right = Key::isRight(key_code);
-    const bool is_down_key = Key::isDown(key_code);
-    const bool is_rotate = Key::isUp(key_code);
-    const bool is_hard_drop = (key_code == Key::SPACE);
+    key_code = Key::normalize(key_code);
 
-    if (is_left)
+    if (key_code == Key::LEFT)
     {
-
       hold_left = false;
       if (hold_right)
       {
@@ -612,7 +504,7 @@ public:
         das_dir = 0;
       }
     }
-    else if (is_right)
+    else if (key_code == Key::RIGHT)
     {
       hold_right = false;
       if (hold_left)
@@ -626,9 +518,86 @@ public:
         das_dir = 0;
       }
     }
-    else if (is_down_key)
+    else if (key_code == Key::DOWN)
     {
       hold_down = false;
+    }
+
+    update_render_grid();
+  }
+
+  void tick(int32_t dt_ms)
+  {
+    dt_ms = clamp(dt_ms, 0, 100);
+
+    if (state != State::PLAYING)
+    {
+      update_render_grid();
+      return;
+    }
+
+    elapsed_ms += dt_ms;
+
+    if (clear_timer_ms > 0)
+    {
+      clear_timer_ms -= dt_ms;
+      if (clear_timer_ms <= 0)
+      {
+        collapse_cleared_rows();
+      }
+      update_render_grid();
+      return;
+    }
+
+    constexpr int32_t INITIAL_DELAY = 145;
+    constexpr int32_t REPEAT_DELAY = 38;
+
+    if (das_dir != 0)
+    {
+      das_timer_ms += dt_ms;
+      if (das_timer_ms >= INITIAL_DELAY)
+      {
+        arr_timer_ms += dt_ms;
+        while (arr_timer_ms >= REPEAT_DELAY)
+        {
+          arr_timer_ms -= REPEAT_DELAY;
+          try_move(das_dir, 0);
+        }
+      }
+    }
+
+    if (hold_down)
+    {
+      soft_drop_timer_ms += dt_ms;
+      while (soft_drop_timer_ms >= REPEAT_DELAY)
+      {
+        soft_drop_timer_ms -= REPEAT_DELAY;
+        if (try_move(0, 1))
+        {
+          score += 1;
+          high_score = max(high_score, score);
+          gravity_timer_ms = 0;
+        }
+        else
+        {
+          // Once we reach the bottom update the grid
+          lock_current_piece();
+          update_render_grid();
+          return;
+        }
+      }
+    }
+
+    // Interval between automatic row drops depends on level
+    const int32_t interval = gravity_interval_ms();
+    gravity_timer_ms += dt_ms;
+    if (gravity_timer_ms >= interval)
+    {
+      gravity_timer_ms -= interval;
+      if (!try_move(0, 1))
+      {
+        lock_current_piece();
+      }
     }
 
     update_render_grid();

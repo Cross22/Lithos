@@ -10,22 +10,13 @@ extern "C"
 {
 
   WASM_EXPORT(init_game)
-  void init_game(uint32_t seed)
-  {
-    g.init(seed);
-  }
+  void init_game(uint32_t seed) { g.init(seed); }
 
   WASM_EXPORT(start_game)
-  void start_game(uint32_t seed)
-  {
-    g.start(seed);
-  }
+  void start_game(uint32_t seed) { g.start(seed); }
 
   WASM_EXPORT(toggle_pause)
-  void toggle_pause()
-  {
-    g.togglePause();
-  }
+  void toggle_pause() { g.togglePause(); }
 
   WASM_EXPORT(on_key_event)
   void on_key_event(int32_t key_code, int32_t is_down)
@@ -39,77 +30,7 @@ extern "C"
   }
 
   WASM_EXPORT(tick)
-  void tick(int32_t dt_ms)
-  {
-    dt_ms = clamp(dt_ms, 0, 100);
-
-    if (g.state != State::PLAYING)
-    {
-      g.update_render_grid();
-      return;
-    }
-
-    g.elapsed_ms += dt_ms;
-
-    if (g.clear_timer_ms > 0)
-    {
-      g.clear_timer_ms -= dt_ms;
-      if (g.clear_timer_ms <= 0)
-      {
-        g.collapse_cleared_rows();
-      }
-      g.update_render_grid();
-      return;
-    }
-
-    if (g.das_dir != 0)
-    {
-      g.das_timer_ms += dt_ms;
-      if (g.das_timer_ms >= 145)
-      {
-        g.arr_timer_ms += dt_ms;
-        while (g.arr_timer_ms >= 38)
-        {
-          g.arr_timer_ms -= 38;
-          g.try_move(g.das_dir, 0);
-        }
-      }
-    }
-
-    if (g.hold_down)
-    {
-      g.soft_drop_timer_ms += dt_ms;
-      while (g.soft_drop_timer_ms >= 42)
-      {
-        g.soft_drop_timer_ms -= 42;
-        if (g.try_move(0, 1))
-        {
-          g.score += 1;
-          g.high_score = max(g.high_score, g.score);
-          g.gravity_timer_ms = 0;
-        }
-        else
-        {
-          g.lock_current_piece();
-          g.update_render_grid();
-          return;
-        }
-      }
-    }
-
-    g.gravity_timer_ms += dt_ms;
-    const int32_t interval = g.gravity_interval_ms();
-    if (g.gravity_timer_ms >= interval)
-    {
-      g.gravity_timer_ms -= interval;
-      if (!g.try_move(0, 1))
-      {
-        g.lock_current_piece();
-      }
-    }
-
-    g.update_render_grid();
-  }
+  void tick(int32_t dt_ms) { g.tick(dt_ms); }
 
   WASM_EXPORT(get_render_grid)
   const uint8_t *get_render_grid() { return g.render_grid.data(); }
