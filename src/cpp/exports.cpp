@@ -18,25 +18,13 @@ extern "C"
   WASM_EXPORT(start_game)
   void start_game(uint32_t seed)
   {
-    g.init_and_start(seed);
+    g.start(seed);
   }
 
   WASM_EXPORT(toggle_pause)
   void toggle_pause()
   {
-    if (g.state == State::PLAYING)
-    {
-      g.state = State::PAUSED;
-      g.hold_left = false;
-      g.hold_right = false;
-      g.hold_down = false;
-      g.das_dir = 0;
-    }
-    else if (g.state == State::PAUSED)
-    {
-      g.state = State::PLAYING;
-    }
-    g.update_render_grid();
+    g.togglePause();
   }
 
   WASM_EXPORT(on_key_event)
@@ -45,130 +33,9 @@ extern "C"
     const bool down = is_down != 0;
 
     if (down)
-    {
-      if (key_code == Key::P || key_code == Key::ESC)
-      {
-        if (g.state == State::PLAYING || g.state == State::PAUSED)
-        {
-          toggle_pause();
-        }
-        return;
-      }
-      if (key_code == Key::R)
-      {
-        g.init_and_start(g.elapsed_ms);
-        return;
-      }
-      if (key_code == Key::ENTER && (g.state == State::TITLE || g.state == State::GAME_OVER))
-      {
-        g.init_and_start(g.elapsed_ms);
-        return;
-      }
-    }
-
-    const bool is_left = Key::isLeft(key_code);
-    const bool is_right = Key::isRight(key_code);
-    const bool is_down_key = Key::isDown(key_code);
-    const bool is_rotate = Key::isUp(key_code);
-    const bool is_hard_drop = (key_code == Key::SPACE);
-
-    if (is_left)
-    {
-      if (down && !g.hold_left)
-      {
-        g.hold_left = true;
-        g.das_dir = -1;
-        g.das_timer_ms = 0;
-        g.arr_timer_ms = 0;
-        if (g.state == State::PLAYING && g.clear_timer_ms == 0)
-        {
-          g.try_move(-1, 0);
-        }
-      }
-      else if (!down)
-      {
-        g.hold_left = false;
-        if (g.hold_right)
-        {
-          g.das_dir = 1;
-          g.das_timer_ms = 0;
-          g.arr_timer_ms = 0;
-        }
-        else if (g.das_dir == -1)
-        {
-          g.das_dir = 0;
-        }
-      }
-    }
-    else if (is_right)
-    {
-      if (down && !g.hold_right)
-      {
-        g.hold_right = true;
-        g.das_dir = 1;
-        g.das_timer_ms = 0;
-        g.arr_timer_ms = 0;
-        if (g.state == State::PLAYING && g.clear_timer_ms == 0)
-        {
-          g.try_move(1, 0);
-        }
-      }
-      else if (!down)
-      {
-        g.hold_right = false;
-        if (g.hold_left)
-        {
-          g.das_dir = -1;
-          g.das_timer_ms = 0;
-          g.arr_timer_ms = 0;
-        }
-        else if (g.das_dir == 1)
-        {
-          g.das_dir = 0;
-        }
-      }
-    }
-    else if (is_down_key)
-    {
-      if (down && !g.hold_down)
-      {
-        g.hold_down = true;
-        g.soft_drop_timer_ms = 0;
-        if (g.state == State::PLAYING && g.clear_timer_ms == 0)
-        {
-          if (g.try_move(0, 1))
-          {
-            g.score += 1;
-            g.high_score = max(g.high_score, g.score);
-            g.gravity_timer_ms = 0;
-          }
-        }
-      }
-      else if (!down)
-      {
-        g.hold_down = false;
-      }
-    }
-    else if (is_rotate && down)
-    {
-      if (g.state == State::PLAYING && g.clear_timer_ms == 0)
-      {
-        g.try_rotate_cw();
-      }
-    }
-    else if (is_hard_drop && down)
-    {
-      if (g.state == State::PLAYING && g.clear_timer_ms == 0)
-      {
-        g.hard_drop();
-      }
-      else if (g.state == State::TITLE || g.state == State::GAME_OVER)
-      {
-        g.init_and_start(g.elapsed_ms);
-      }
-    }
-
-    g.update_render_grid();
+      g.onKeyPressed(key_code);
+    else
+      g.onKeyReleased(key_code);
   }
 
   WASM_EXPORT(tick)

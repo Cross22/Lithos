@@ -189,12 +189,30 @@ public:
     update_render_grid();
   }
 
-  void init_and_start(uint32_t seed)
+  void start(uint32_t seed)
   {
     init(seed);
     state = State::PLAYING;
     spawn_next_piece();
     update_render_grid();
+  }
+
+  void togglePause()
+  {
+    if (state == State::PLAYING)
+    {
+      state = State::PAUSED;
+      hold_left = false;
+      hold_right = false;
+      hold_down = false;
+      das_dir = 0;
+      update_render_grid();
+    }
+    if (state == State::PAUSED)
+    {
+      state = State::PLAYING;
+      update_render_grid();
+    }
   }
 
   bool shape_cell(int32_t type, int32_t rot, int32_t r, int32_t c)
@@ -478,5 +496,141 @@ public:
   int32_t gravity_interval_ms()
   {
     return max(75, 820 - (level - 1) * 70);
+  }
+
+  void onKeyPressed(int32_t key_code)
+  {
+    if (key_code == Key::P || key_code == Key::ESC)
+    {
+      togglePause();
+      return;
+    }
+    if (key_code == Key::R)
+    {
+      start(elapsed_ms);
+      return;
+    }
+
+    if (state == State::TITLE || state == State::GAME_OVER)
+    {
+      if (key_code == Key::ENTER || key_code == Key::SPACE)
+      {
+        start(elapsed_ms);
+        return;
+      }
+    }
+
+    const bool is_left = Key::isLeft(key_code);
+    const bool is_right = Key::isRight(key_code);
+    const bool is_down_key = Key::isDown(key_code);
+    const bool is_rotate = Key::isUp(key_code);
+    const bool is_hard_drop = (key_code == Key::SPACE);
+
+    if (is_left)
+    {
+      if (!hold_left)
+      {
+        hold_left = true;
+        das_dir = -1;
+        das_timer_ms = 0;
+        arr_timer_ms = 0;
+        if (state == State::PLAYING && clear_timer_ms == 0)
+        {
+          try_move(-1, 0);
+        }
+      }
+    }
+    else if (is_right)
+    {
+      if (!hold_right)
+      {
+        hold_right = true;
+        das_dir = 1;
+        das_timer_ms = 0;
+        arr_timer_ms = 0;
+        if (state == State::PLAYING && clear_timer_ms == 0)
+        {
+          try_move(1, 0);
+        }
+      }
+    }
+    else if (is_down_key)
+    {
+      if (!hold_down)
+      {
+        hold_down = true;
+        soft_drop_timer_ms = 0;
+        if (state == State::PLAYING && clear_timer_ms == 0)
+        {
+          if (try_move(0, 1))
+          {
+            score += 1;
+            high_score = max(high_score, score);
+            gravity_timer_ms = 0;
+          }
+        }
+      }
+    }
+    else if (is_rotate)
+    {
+      if (state == State::PLAYING && clear_timer_ms == 0)
+      {
+        try_rotate_cw();
+      }
+    }
+    else if (is_hard_drop)
+    {
+      if (state == State::PLAYING && clear_timer_ms == 0)
+      {
+        hard_drop();
+      }
+    }
+
+    update_render_grid();
+  }
+
+  void onKeyReleased(int32_t key_code)
+  {
+    const bool is_left = Key::isLeft(key_code);
+    const bool is_right = Key::isRight(key_code);
+    const bool is_down_key = Key::isDown(key_code);
+    const bool is_rotate = Key::isUp(key_code);
+    const bool is_hard_drop = (key_code == Key::SPACE);
+
+    if (is_left)
+    {
+
+      hold_left = false;
+      if (hold_right)
+      {
+        das_dir = 1;
+        das_timer_ms = 0;
+        arr_timer_ms = 0;
+      }
+      else if (das_dir == -1)
+      {
+        das_dir = 0;
+      }
+    }
+    else if (is_right)
+    {
+      hold_right = false;
+      if (hold_left)
+      {
+        das_dir = -1;
+        das_timer_ms = 0;
+        arr_timer_ms = 0;
+      }
+      else if (das_dir == 1)
+      {
+        das_dir = 0;
+      }
+    }
+    else if (is_down_key)
+    {
+      hold_down = false;
+    }
+
+    update_render_grid();
   }
 };
