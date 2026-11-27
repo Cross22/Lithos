@@ -13,6 +13,8 @@ coverage/
 Thumbs.db
 .vscode/ipch/
 .vscode/*.local
+.vscode/.chrome-debug/
+.vscode/.edge-debug/
 .idea/
 *.swp
 *.swo

@@ -7,7 +7,22 @@
       "request": "launch",
       "url": "http://localhost:3000",
       "webRoot": "${workspaceFolder}",
+      "enableDWARF": true,
+      "userDataDir": "${workspaceFolder}/.vscode/.chrome-debug",
+      "runtimeArgs": [
+        "--no-first-run",
+        "--no-default-browser-check"
+      ],
       "preLaunchTask": "Dev Server (Debug WASM + Vite)"
+    },
+    {
+      "name": "Attach to Chrome (C++ DWARF, Port 9222)",
+      "type": "chrome",
+      "request": "attach",
+      "port": 9222,
+      "urlFilter": "http://localhost:3000/*",
+      "webRoot": "${workspaceFolder}",
+      "enableDWARF": true
     },
     {
       "name": "Debug Lithos in Edge (C++ DWARF)",
@@ -15,6 +30,12 @@
       "request": "launch",
       "url": "http://localhost:3000",
       "webRoot": "${workspaceFolder}",
+      "enableDWARF": true,
+      "userDataDir": "${workspaceFolder}/.vscode/.edge-debug",
+      "runtimeArgs": [
+        "--no-first-run",
+        "--no-default-browser-check"
+      ],
       "preLaunchTask": "Dev Server (Debug WASM + Vite)"
     },
     {
@@ -23,6 +44,7 @@
       "request": "launch",
       "url": "http://localhost:3000",
       "webRoot": "${workspaceFolder}",
+      "userDataDir": "${workspaceFolder}/.vscode/.chrome-debug",
       "preLaunchTask": "Dev Server (Release WASM + Vite)"
     }
   ]
