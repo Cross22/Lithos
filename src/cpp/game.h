@@ -104,7 +104,7 @@ public:
       das_dir = 0;
       update_render_grid();
     }
-    if (state == State::PAUSED)
+    else if (state == State::PAUSED)
     {
       state = State::PLAYING;
       update_render_grid();

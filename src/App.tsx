@@ -317,6 +317,15 @@ export default function App() {
                     frameVersion={frameVersion}
                   />
 
+                  {/* Loading WebAssembly Engine State */}
+                  {!wasmReady && !loadError && (
+                    <div className="absolute inset-0 bg-[#0B0D10]/86 flex flex-col items-center justify-center px-5 text-center">
+                      <p className="text-xs sm:text-sm text-zinc-300">
+                        Loading WebAssembly engine…
+                      </p>
+                    </div>
+                  )}
+
                   {/* Title Menu Overlay */}
                   {wasmReady && gameState === GameState.TITLE && (
                     <div className="absolute inset-0 bg-[#0B0D10]/86 backdrop-blur-[2px] flex flex-col items-center justify-center px-5 text-center">

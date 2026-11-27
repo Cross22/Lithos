@@ -47,22 +47,24 @@
     {
       "label": "Dev Server (Debug WASM + Vite)",
       "type": "shell",
-      "command": "bash scripts/build-wasm.sh --debug && npm run dev",
+      "command": "npm run dev",
+      "dependsOn": ["Build WebAssembly Debug (C++ -> WASM + DWARF)"],
       "isBackground": true,
       "problemMatcher": [
         {
           "pattern": [
             {
-              "regexp": "^(.*)$",
+              "regexp": "^ERROR:\\s+(.+):(\\d+):(\\d+):\\s+(.+)$",
               "file": 1,
-              "location": 2,
-              "message": 3
+              "line": 2,
+              "column": 3,
+              "message": 4
             }
           ],
           "background": {
             "activeOnStart": true,
             "beginsPattern": "VITE v",
-            "endsPattern": "Local:\\s+http://"
+            "endsPattern": "Local:"
           }
         }
       ],
@@ -74,22 +76,24 @@
     {
       "label": "Dev Server (Release WASM + Vite)",
       "type": "shell",
-      "command": "bash scripts/build-wasm.sh && npm run dev",
+      "command": "npm run dev",
+      "dependsOn": ["Build WebAssembly (C++ -> WASM Release)"],
       "isBackground": true,
       "problemMatcher": [
         {
           "pattern": [
             {
-              "regexp": "^(.*)$",
+              "regexp": "^ERROR:\\s+(.+):(\\d+):(\\d+):\\s+(.+)$",
               "file": 1,
-              "location": 2,
-              "message": 3
+              "line": 2,
+              "column": 3,
+              "message": 4
             }
           ],
           "background": {
             "activeOnStart": true,
             "beginsPattern": "VITE v",
-            "endsPattern": "Local:\\s+http://"
+            "endsPattern": "Local:"
           }
         }
       ],

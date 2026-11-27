@@ -19,13 +19,25 @@ const SPRITE_CELL_PX = 64;
 /** Alpha opacity used when alpha-blending ghost tile bitmaps over the pit grid. */
 const GHOST_TILE_ALPHA = 0.28;
 
+const FALLBACK_COLORS = [
+  '#F8FAFC',
+  '#2CB1BC',
+  '#D99B26',
+  '#8B68C8',
+  '#34A876',
+  '#D05353',
+  '#467FD0',
+  '#D4763B',
+];
+
 /**
  * Shared loader hook for the tile bitmap spritesheet.
  * Caches a single `HTMLImageElement` instance across both canvases and triggers
  * a React re-render once the PNG bitmap finishes decoding.
  */
-function useTileSpritesheet(): HTMLImageElement | null {
+function useTileSpritesheet(): { sheet: HTMLImageElement | null; failed: boolean } {
   const [sheet, setSheet] = useState<HTMLImageElement | null>(null);
+  const [failed, setFailed] = useState(false);
 
   useEffect(() => {
     let active = true;
@@ -34,6 +46,12 @@ function useTileSpritesheet(): HTMLImageElement | null {
     img.onload = () => {
       if (active) {
         setSheet(img);
+        setFailed(false);
+      }
+    };
+    img.onerror = () => {
+      if (active) {
+        setFailed(true);
       }
     };
     return () => {
@@ -41,35 +59,42 @@ function useTileSpritesheet(): HTMLImageElement | null {
     };
   }, []);
 
-  return sheet;
+  return { sheet, failed };
 }
 
 /**
  * Draws a single tile bitmap from the spritesheet onto `ctx` at `(dx, dy)`
  * scaled to `destSize x destSize`, with optional alpha blending.
+ * Falls back to a solid color fill if the spritesheet PNG failed to load.
  */
 function blitTileSprite(
   ctx: CanvasRenderingContext2D,
-  sheet: HTMLImageElement,
+  sheet: HTMLImageElement | null,
   spriteIndex: number,
   dx: number,
   dy: number,
   destSize: number,
   alpha = 1
 ): void {
-  const sx = spriteIndex * SPRITE_CELL_PX;
   ctx.globalAlpha = alpha;
-  ctx.drawImage(
-    sheet,
-    sx,
-    0,
-    SPRITE_CELL_PX,
-    SPRITE_CELL_PX,
-    dx,
-    dy,
-    destSize,
-    destSize
-  );
+  if (sheet) {
+    const sx = spriteIndex * SPRITE_CELL_PX;
+    ctx.drawImage(
+      sheet,
+      sx,
+      0,
+      SPRITE_CELL_PX,
+      SPRITE_CELL_PX,
+      dx,
+      dy,
+      destSize,
+      destSize
+    );
+  } else {
+    const pad = Math.max(1, Math.floor(destSize * 0.04));
+    ctx.fillStyle = FALLBACK_COLORS[spriteIndex] ?? '#94A3B8';
+    ctx.fillRect(dx + pad, dy + pad, destSize - pad * 2, destSize - pad * 2);
+  }
 }
 
 interface GameCanvasProps {
@@ -89,7 +114,7 @@ interface GameCanvasProps {
  */
 export function GameCanvas({ tileSize, cols, rows, renderGrid, frameVersion }: GameCanvasProps) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
-  const spritesheet = useTileSpritesheet();
+  const { sheet: spritesheet, failed: sheetFailed } = useTileSpritesheet();
   const widthCss = tileSize * cols;
   const heightCss = tileSize * rows;
 
@@ -136,7 +161,7 @@ export function GameCanvas({ tileSize, cols, rows, renderGrid, frameVersion }: G
     ctx.stroke();
 
     // 3. Blit tile bitmaps from the spritesheet (solid, alpha-blended ghost, or flash)
-    if (spritesheet && renderGrid && renderGrid.length >= cols * rows) {
+    if ((spritesheet || sheetFailed) && renderGrid && renderGrid.length >= cols * rows) {
       for (let r = 0; r < rows; r++) {
         for (let c = 0; c < cols; c++) {
           const val = renderGrid[r * cols + c];
@@ -162,7 +187,7 @@ export function GameCanvas({ tileSize, cols, rows, renderGrid, frameVersion }: G
     }
 
     ctx.restore();
-  }, [tileSize, cols, rows, widthCss, heightCss, renderGrid, frameVersion, spritesheet]);
+  }, [tileSize, cols, rows, widthCss, heightCss, renderGrid, frameVersion, spritesheet, sheetFailed]);
 
   return (
     <canvas
@@ -186,7 +211,7 @@ interface NextPieceCanvasProps {
  */
 export function NextPieceCanvas({ nextGrid, frameVersion }: NextPieceCanvasProps) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
-  const spritesheet = useTileSpritesheet();
+  const { sheet: spritesheet, failed: sheetFailed } = useTileSpritesheet();
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -208,7 +233,7 @@ export function NextPieceCanvas({ nextGrid, frameVersion }: NextPieceCanvasProps
     ctx.imageSmoothingQuality = 'high';
     ctx.clearRect(0, 0, size, size);
 
-    if (spritesheet && nextGrid && nextGrid.length >= 16) {
+    if ((spritesheet || sheetFailed) && nextGrid && nextGrid.length >= 16) {
       let minR = 4;
       let maxR = -1;
       let minC = 4;
@@ -256,7 +281,7 @@ export function NextPieceCanvas({ nextGrid, frameVersion }: NextPieceCanvasProps
     }
 
     ctx.restore();
-  }, [nextGrid, frameVersion, spritesheet]);
+  }, [nextGrid, frameVersion, spritesheet, sheetFailed]);
 
   return (
     <canvas
