@@ -3,23 +3,27 @@
   "configurations": [
     {
       "name": "Mac (wasi-sdk C++23 stdlib)",
-      "compilerPath": "${env:HOME}/.local/wasi-sdk/bin/clang++",
+      "compilerPath": "${userHome}/.local/wasi-sdk/bin/clang++",
+      "compilerArgs": ["--target=wasm32-wasip1"],
       "cppStandard": "c++23",
       "intelliSenseMode": "macos-clang-arm64",
       "includePath": [
         "${workspaceFolder}/src/cpp/**",
-        "${env:HOME}/.local/wasi-sdk/share/wasi-sysroot/include/c++/v1",
-        "${env:HOME}/.local/wasi-sdk/share/wasi-sysroot/include"
+        "${userHome}/.local/wasi-sdk/share/wasi-sysroot/include/c++/v1",
+        "${userHome}/.local/wasi-sdk/share/wasi-sysroot/include/wasm32-wasip1",
+        "${userHome}/.local/wasi-sdk/share/wasi-sysroot/include"
       ]
     },
     {
       "name": "Linux (wasi-sdk C++23 stdlib)",
       "compilerPath": "/opt/wasi-sdk/bin/clang++",
+      "compilerArgs": ["--target=wasm32-wasip1"],
       "cppStandard": "c++23",
       "intelliSenseMode": "linux-clang-x64",
       "includePath": [
         "${workspaceFolder}/src/cpp/**",
         "/opt/wasi-sdk/share/wasi-sysroot/include/c++/v1",
+        "/opt/wasi-sdk/share/wasi-sysroot/include/wasm32-wasip1",
         "/opt/wasi-sdk/share/wasi-sysroot/include"
       ]
     }

@@ -113,33 +113,25 @@ export class CppWasmEngine {
 
   /**
    * Fetches and instantiates the compiled WebAssembly module.
-   * Uses streaming instantiation when supported and falls back to ArrayBuffer
-   * instantiation if the web server lacks `application/wasm` MIME headers.
+   * Reads the full ArrayBuffer before instantiating so large debug/DWARF
+   * binaries never stall on ReadableStream.tee() / response.clone(), and works
+   * regardless of server MIME headers.
    */
   static async load(wasmUrl = '/game.wasm'): Promise<CppWasmEngine> {
-    const response = await fetch(wasmUrl);
+    const response = await fetch(wasmUrl, { cache: 'no-store' });
     if (!response.ok) {
       throw new Error(`Failed to fetch WebAssembly module (${response.status})`);
     }
 
-    let instance: WebAssembly.Instance;
-    if (typeof WebAssembly.instantiateStreaming === 'function') {
-      try {
-        const result = await WebAssembly.instantiateStreaming(
-          response.clone(),
-          WASI_STUB_IMPORTS
-        );
-        instance = result.instance;
-      } catch {
-        const buffer = await response.arrayBuffer();
-        const result = await WebAssembly.instantiate(buffer, WASI_STUB_IMPORTS);
-        instance = result.instance;
-      }
-    } else {
-      const buffer = await response.arrayBuffer();
-      const result = await WebAssembly.instantiate(buffer, WASI_STUB_IMPORTS);
-      instance = result.instance;
+    const contentType = response.headers.get('content-type') ?? '';
+    if (contentType.includes('text/html')) {
+      throw new Error(
+        `WebAssembly binary missing at ${wasmUrl} (received HTML fallback). Run "npm run build:wasm:debug".`
+      );
     }
+
+    const buffer = await response.arrayBuffer();
+    const { instance } = await WebAssembly.instantiate(buffer, WASI_STUB_IMPORTS);
 
     return new CppWasmEngine(instance.exports as unknown as WasmExports);
   }
