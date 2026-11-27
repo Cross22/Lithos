@@ -8,7 +8,6 @@
       "url": "http://localhost:3000",
       "webRoot": "${workspaceFolder}",
       "enableDWARF": true,
-      "userDataDir": "${workspaceFolder}/.vscode/.chrome-debug",
       "runtimeArgs": [
         "--no-first-run",
         "--no-default-browser-check"
@@ -31,7 +30,6 @@
       "url": "http://localhost:3000",
       "webRoot": "${workspaceFolder}",
       "enableDWARF": true,
-      "userDataDir": "${workspaceFolder}/.vscode/.edge-debug",
       "runtimeArgs": [
         "--no-first-run",
         "--no-default-browser-check"
@@ -44,7 +42,11 @@
       "request": "launch",
       "url": "http://localhost:3000",
       "webRoot": "${workspaceFolder}",
-      "userDataDir": "${workspaceFolder}/.vscode/.chrome-debug",
+      "enableDWARF": false,
+      "runtimeArgs": [
+        "--no-first-run",
+        "--no-default-browser-check"
+      ],
       "preLaunchTask": "Dev Server (Release WASM + Vite)"
     }
   ]
