@@ -2,20 +2,28 @@
   "version": "0.2.0",
   "configurations": [
     {
-      "name": "Launch Lithos in Chrome (Dev Server)",
+      "name": "Debug Lithos in Chrome (C++ DWARF)",
       "type": "chrome",
       "request": "launch",
       "url": "http://localhost:3000",
       "webRoot": "${workspaceFolder}",
-      "preLaunchTask": "Dev Server (Build WASM + Vite)"
+      "preLaunchTask": "Dev Server (Debug WASM + Vite)"
     },
     {
-      "name": "Launch Lithos in Edge (Dev Server)",
+      "name": "Debug Lithos in Edge (C++ DWARF)",
       "type": "msedge",
       "request": "launch",
       "url": "http://localhost:3000",
       "webRoot": "${workspaceFolder}",
-      "preLaunchTask": "Dev Server (Build WASM + Vite)"
+      "preLaunchTask": "Dev Server (Debug WASM + Vite)"
+    },
+    {
+      "name": "Launch Lithos in Chrome (Release WASM)",
+      "type": "chrome",
+      "request": "launch",
+      "url": "http://localhost:3000",
+      "webRoot": "${workspaceFolder}",
+      "preLaunchTask": "Dev Server (Release WASM + Vite)"
     }
   ]
 }
