@@ -203,13 +203,15 @@ interface NextPieceCanvasProps {
   /** Zero-copy Uint8Array view of C++ `g.next_grid` (4x4 = 16 bytes). */
   nextGrid: Uint8Array | null;
   frameVersion: number;
+  /** Square CSS pixel dimensions of the preview canvas. */
+  size?: number;
 }
 
 /**
- * Renders the upcoming tetromino centered inside an 88x88px preview box
+ * Renders the upcoming tetromino centered inside a dynamically sized preview box
  * using the shared tile bitmap spritesheet.
  */
-export function NextPieceCanvas({ nextGrid, frameVersion }: NextPieceCanvasProps) {
+export function NextPieceCanvas({ nextGrid, frameVersion, size = 160 }: NextPieceCanvasProps) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const { sheet: spritesheet, failed: sheetFailed } = useTileSpritesheet();
 
@@ -217,7 +219,6 @@ export function NextPieceCanvas({ nextGrid, frameVersion }: NextPieceCanvasProps
     const canvas = canvasRef.current;
     if (!canvas) return;
 
-    const size = 88;
     const dpr = Math.min(window.devicePixelRatio || 1, 2);
     if (canvas.width !== size * dpr || canvas.height !== size * dpr) {
       canvas.width = size * dpr;
@@ -255,7 +256,7 @@ export function NextPieceCanvas({ nextGrid, frameVersion }: NextPieceCanvasProps
       }
 
       if (pieceType >= 1 && pieceType <= 7 && maxR >= minR && maxC >= minC) {
-        const cellSize = 18;
+        const cellSize = Math.max(16, Math.floor((size - 16) / 4));
         const spanW = (maxC - minC + 1) * cellSize;
         const spanH = (maxR - minR + 1) * cellSize;
         const offsetX = Math.floor((size - spanW) / 2);
@@ -281,12 +282,12 @@ export function NextPieceCanvas({ nextGrid, frameVersion }: NextPieceCanvasProps
     }
 
     ctx.restore();
-  }, [nextGrid, frameVersion, spritesheet, sheetFailed]);
+  }, [nextGrid, frameVersion, size, spritesheet, sheetFailed]);
 
   return (
     <canvas
       ref={canvasRef}
-      style={{ width: '88px', height: '88px' }}
+      style={{ width: `${size}px`, height: `${size}px` }}
       className="block"
       aria-label="Next tile piece preview"
     />

@@ -76,12 +76,13 @@ export default function App() {
   const [layout, setLayout] = useState({
     tileSize: 32,
     borderPx: 22,
-    hudWidth: 260,
+    hudWidth: 292,
     gapPx: 32,
+    previewSize: 176,
     compact: false,
   });
 
-  /** Pulls fresh state from C++ WASM, updates React HUD, and fires Web Audio cues. */
+  /** Pulls fresh state from C++ WASM, updates React HUD, and fires audio cues/music. */
   const syncFromSnapshot = useCallback((snap: GameSnapshot) => {
     snapshotRef.current = snap;
     setGameState(snap.state);
@@ -91,6 +92,7 @@ export default function App() {
     setLevel(snap.level);
     setElapsedMs(snap.elapsedMs);
     setFrameVersion((v) => (v + 1) & 0x3fffffff);
+    soundEngine.syncGameState(snap.state);
     if (snap.events !== 0) {
       soundEngine.playEvents(snap.events);
     }
@@ -130,7 +132,17 @@ export default function App() {
 
       const compact = availW < 640;
       const hudWidth =
-        availW >= 960 ? 276 : availW >= 640 ? 236 : Math.max(144, Math.floor(availW * 0.39));
+        availW >= 960 ? 292 : availW >= 640 ? 248 : Math.max(156, Math.floor(availW * 0.4));
+      const hudPad = compact ? 12 : 20;
+      const innerHudW = hudWidth - hudPad * 2;
+      const previewSize = Math.max(
+        84,
+        Math.min(
+          innerHudW - 16,
+          Math.floor(availH * (compact ? 0.16 : 0.24)),
+          compact ? 104 : 188
+        )
+      );
       const gapPx = availW >= 960 ? 36 : availW >= 640 ? 24 : 14;
       const padMargin = availW >= 640 ? 16 : 8;
 
@@ -154,7 +166,7 @@ export default function App() {
         borderPx = Math.max(10, Math.round(tileSize * 0.72));
       }
 
-      setLayout({ tileSize, borderPx, hudWidth, gapPx, compact });
+      setLayout({ tileSize, borderPx, hudWidth, gapPx, previewSize, compact });
     };
 
     computeLayout();
@@ -215,6 +227,9 @@ export default function App() {
 
       engine.onKeyEvent(wasmKey, true);
       syncFromSnapshot(engine.getSnapshot());
+      if (e.code === 'KeyR') {
+        soundEngine.restartMusic();
+      }
     };
 
     const handleKeyUp = (e: KeyboardEvent) => {
@@ -253,6 +268,7 @@ export default function App() {
     if (!engine) return;
     engine.startGame();
     syncFromSnapshot(engine.getSnapshot());
+    soundEngine.restartMusic();
   };
 
   /** Pauses or resumes C++ gravity and elapsed timer. */
@@ -285,10 +301,10 @@ export default function App() {
       >
         {loadError ? (
           <div className="max-w-md border border-white/10 bg-[#1B1E23] p-6 rounded-lg text-center">
-            <h1 className="font-display text-xl font-semibold text-white mb-2">
+            <h1 className="font-display text-sm sm:text-base text-white mb-3 leading-relaxed">
               Unable to Initialize Game Engine
             </h1>
-            <p className="text-sm text-zinc-400">{loadError}</p>
+            <p className="text-[10px] text-zinc-400 leading-relaxed">{loadError}</p>
           </div>
         ) : (
           <div
@@ -319,56 +335,56 @@ export default function App() {
 
                   {/* Loading WebAssembly Engine State */}
                   {!wasmReady && !loadError && (
-                    <div className="absolute inset-0 bg-[#0B0D10]/86 flex flex-col items-center justify-center px-5 text-center">
-                      <p className="text-xs sm:text-sm text-zinc-300">
-                        Loading WebAssembly engine…
+                    <div className="absolute inset-0 bg-[#0B0D10]/86 flex flex-col items-center justify-center px-4 text-center">
+                      <p className="text-[10px] sm:text-[11px] text-zinc-300 leading-relaxed">
+                        Loading WebAssembly engine...
                       </p>
                     </div>
                   )}
 
                   {/* Title Menu Overlay */}
                   {wasmReady && gameState === GameState.TITLE && (
-                    <div className="absolute inset-0 bg-[#0B0D10]/86 backdrop-blur-[2px] flex flex-col items-center justify-center px-5 text-center">
-                      <h1 className="font-display text-3xl sm:text-4xl font-bold tracking-tight text-white mb-2">
+                    <div className="absolute inset-0 bg-[#0B0D10]/86 backdrop-blur-[2px] flex flex-col items-center justify-center px-4 text-center">
+                      <h1 className="font-display text-xl sm:text-2xl tracking-tight text-white mb-4">
                         Lithos
                       </h1>
-                      <p className="text-xs sm:text-sm text-zinc-300 max-w-[230px] leading-relaxed mb-6">
-                        Stack falling stone tiles across the 10×20 pit and clear complete rows.
+                      <p className="text-[9px] sm:text-[10px] text-zinc-300 max-w-[230px] leading-loose mb-6">
+                        Stack falling stone tiles across the 10x20 pit and clear rows.
                       </p>
                       <button
                         type="button"
                         onClick={handleStart}
-                        className="px-5 py-2.5 rounded-md bg-[#F1F3F5] text-[#131518] text-sm font-semibold hover:bg-white active:scale-[0.98] transition-all cursor-pointer whitespace-nowrap shrink-0 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white"
+                        className="px-4 py-3 rounded-md bg-[#F1F3F5] text-[#131518] text-[10px] sm:text-[11px] hover:bg-white active:scale-[0.98] transition-all cursor-pointer whitespace-nowrap shrink-0 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white"
                       >
                         Start Game
                       </button>
-                      <p className="mt-4 text-xs text-zinc-400">
-                        Press Enter or Space to begin
+                      <p className="mt-5 text-[9px] text-zinc-400 leading-relaxed">
+                        Enter or Space to start
                       </p>
                     </div>
                   )}
 
                   {/* Paused Overlay */}
                   {wasmReady && gameState === GameState.PAUSED && (
-                    <div className="absolute inset-0 bg-[#0B0D10]/82 backdrop-blur-[2px] flex flex-col items-center justify-center px-5 text-center">
-                      <h2 className="font-display text-2xl sm:text-3xl font-bold tracking-tight text-white mb-2">
+                    <div className="absolute inset-0 bg-[#0B0D10]/82 backdrop-blur-[2px] flex flex-col items-center justify-center px-4 text-center">
+                      <h2 className="font-display text-lg sm:text-xl tracking-tight text-white mb-3">
                         Paused
                       </h2>
-                      <p className="text-xs sm:text-sm text-zinc-400 mb-6">
-                        Timer and gravity suspended
+                      <p className="text-[9px] sm:text-[10px] text-zinc-400 leading-relaxed mb-6">
+                        Timer and gravity paused
                       </p>
-                      <div className="flex flex-col gap-2.5 w-full max-w-[180px]">
+                      <div className="flex flex-col gap-3 w-full max-w-[180px]">
                         <button
                           type="button"
                           onClick={handleTogglePause}
-                          className="w-full px-4 py-2.5 rounded-md bg-[#F1F3F5] text-[#131518] text-sm font-semibold hover:bg-white transition-colors cursor-pointer whitespace-nowrap shrink-0"
+                          className="w-full px-4 py-3 rounded-md bg-[#F1F3F5] text-[#131518] text-[10px] sm:text-[11px] hover:bg-white transition-colors cursor-pointer whitespace-nowrap shrink-0"
                         >
                           Resume
                         </button>
                         <button
                           type="button"
                           onClick={handleStart}
-                          className="w-full px-4 py-2 rounded-md border border-white/15 bg-white/5 text-zinc-200 text-sm font-medium hover:bg-white/10 transition-colors cursor-pointer whitespace-nowrap shrink-0"
+                          className="w-full px-4 py-2.5 rounded-md border border-white/15 bg-white/5 text-zinc-200 text-[10px] sm:text-[11px] hover:bg-white/10 transition-colors cursor-pointer whitespace-nowrap shrink-0"
                         >
                           Restart
                         </button>
@@ -378,24 +394,24 @@ export default function App() {
 
                   {/* Game Over Overlay */}
                   {wasmReady && gameState === GameState.GAME_OVER && (
-                    <div className="absolute inset-0 bg-[#0B0D10]/88 backdrop-blur-[2px] flex flex-col items-center justify-center px-5 text-center">
-                      <h2 className="font-display text-2xl sm:text-3xl font-bold tracking-tight text-white mb-1">
+                    <div className="absolute inset-0 bg-[#0B0D10]/88 backdrop-blur-[2px] flex flex-col items-center justify-center px-4 text-center">
+                      <h2 className="font-display text-lg sm:text-xl tracking-tight text-white mb-3">
                         Game Over
                       </h2>
-                      <p className="text-xs text-zinc-400 mb-5">
-                        {lines} {lines === 1 ? 'line' : 'lines'} cleared · Level {level}
+                      <p className="text-[9px] text-zinc-400 leading-relaxed mb-5">
+                        {lines} {lines === 1 ? 'line' : 'lines'} / Lv {level}
                       </p>
 
-                      <div className="w-full max-w-[200px] border-t border-b border-white/10 py-3 mb-6 space-y-2">
-                        <div className="flex items-baseline justify-between text-sm">
-                          <span className="text-zinc-400">Final Score</span>
-                          <span className="font-mono-tabular font-semibold text-white">
+                      <div className="w-full max-w-[220px] border-t border-b border-white/10 py-3 mb-6 space-y-3">
+                        <div className="flex items-baseline justify-between gap-2 text-[9px] sm:text-[10px]">
+                          <span className="text-zinc-400">Score</span>
+                          <span className="font-mono-tabular text-white">
                             {score.toLocaleString()}
                           </span>
                         </div>
-                        <div className="flex items-baseline justify-between text-sm">
-                          <span className="text-zinc-400">Elapsed Time</span>
-                          <span className="font-mono-tabular font-semibold text-white">
+                        <div className="flex items-baseline justify-between gap-2 text-[9px] sm:text-[10px]">
+                          <span className="text-zinc-400">Time</span>
+                          <span className="font-mono-tabular text-white">
                             {formatElapsedTime(elapsedMs)}
                           </span>
                         </div>
@@ -404,7 +420,7 @@ export default function App() {
                       <button
                         type="button"
                         onClick={handleStart}
-                        className="px-5 py-2.5 rounded-md bg-[#F1F3F5] text-[#131518] text-sm font-semibold hover:bg-white active:scale-[0.98] transition-all cursor-pointer whitespace-nowrap shrink-0 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white"
+                        className="px-4 py-3 rounded-md bg-[#F1F3F5] text-[#131518] text-[10px] sm:text-[11px] hover:bg-white active:scale-[0.98] transition-all cursor-pointer whitespace-nowrap shrink-0 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white"
                       >
                         Play Again
                       </button>
@@ -414,52 +430,61 @@ export default function App() {
               </div>
             </div>
 
-            {/* Right-Side HUD: Current Score, Elapsed Time, Next Tile & Controls */}
+            {/* Right-Side HUD: Large Next Shape at Top, Score, Elapsed Time & Controls */}
             <aside
               className="flex flex-col justify-between bg-[#1A1D22] border border-white/[0.08] rounded-md shrink-0 overflow-hidden"
               style={{
                 width: `${layout.hudWidth}px`,
                 padding: layout.compact ? '12px' : '20px',
               }}
-              aria-label="Score, elapsed time, and game controls"
+              aria-label="Next shape, score, elapsed time, and game controls"
             >
-              <div className="space-y-4 sm:space-y-5">
-                {/* Panel Header & Audio Mute Toggle */}
-                <div className="flex items-center justify-between gap-2 pb-3 border-b border-white/[0.07]">
-                  <span className="font-display text-lg sm:text-xl font-bold tracking-tight text-white whitespace-nowrap shrink-0">
-                    Lithos
-                  </span>
-                  <button
-                    type="button"
-                    onClick={handleToggleMute}
-                    aria-label={muted ? 'Unmute sound effects' : 'Mute sound effects'}
-                    className="p-2 rounded-md text-zinc-400 hover:text-white hover:bg-white/[0.06] transition-colors cursor-pointer shrink-0 focus-visible:outline-2 focus-visible:outline-white"
-                  >
-                    {muted ? <VolumeX className="w-4 h-4" /> : <Volume2 className="w-4 h-4" />}
-                  </button>
+              <div className="space-y-3 sm:space-y-4">
+                {/* Top Right: Large Next Shape Preview & Audio Mute Toggle */}
+                <div>
+                  <div className="flex items-center justify-between gap-2 mb-2">
+                    <span className="text-[10px] sm:text-[11px] text-zinc-400">Next</span>
+                    <button
+                      type="button"
+                      onClick={handleToggleMute}
+                      aria-label={muted ? 'Unmute audio' : 'Mute audio'}
+                      className="p-1.5 rounded-md text-zinc-400 hover:text-white hover:bg-white/[0.06] transition-colors cursor-pointer shrink-0 focus-visible:outline-2 focus-visible:outline-white"
+                    >
+                      {muted ? <VolumeX className="w-4 h-4" /> : <Volume2 className="w-4 h-4" />}
+                    </button>
+                  </div>
+                  <div className="w-full py-2 bg-[#121418] border border-white/[0.06] rounded flex items-center justify-center">
+                    <NextPieceCanvas
+                      nextGrid={snapshotRef.current?.nextGrid ?? null}
+                      frameVersion={frameVersion}
+                      size={layout.previewSize}
+                    />
+                  </div>
                 </div>
 
                 {/* Primary Telemetry: Score & Elapsed Time */}
-                <div className="space-y-3 sm:space-y-4">
+                <div className="pt-3 border-t border-white/[0.07] space-y-3">
                   <div>
-                    <div className="text-xs font-medium text-zinc-400 mb-0.5">Score</div>
+                    <div className="text-[9px] sm:text-[10px] text-zinc-400 mb-1.5">Score</div>
                     <div
-                      className={`font-mono-tabular font-bold tracking-tight text-white leading-none ${
-                        layout.compact ? 'text-2xl' : 'text-3xl sm:text-4xl'
+                      className={`font-mono-tabular tracking-tight text-white leading-none ${
+                        layout.compact ? 'text-base' : 'text-xl sm:text-2xl'
                       }`}
                     >
                       {score.toLocaleString()}
                     </div>
-                    <div className="mt-1.5 text-xs text-zinc-500 font-mono-tabular">
+                    <div className="mt-2 text-[9px] text-zinc-500 font-mono-tabular">
                       Best {highScore.toLocaleString()}
                     </div>
                   </div>
 
                   <div className="pt-3 border-t border-white/[0.07]">
-                    <div className="text-xs font-medium text-zinc-400 mb-0.5">Elapsed Time</div>
+                    <div className="text-[9px] sm:text-[10px] text-zinc-400 mb-1.5">
+                      Elapsed Time
+                    </div>
                     <div
-                      className={`font-mono-tabular font-semibold tracking-tight text-zinc-100 leading-none ${
-                        layout.compact ? 'text-xl' : 'text-2xl sm:text-3xl'
+                      className={`font-mono-tabular tracking-tight text-zinc-100 leading-none ${
+                        layout.compact ? 'text-sm' : 'text-lg sm:text-xl'
                       }`}
                     >
                       {formatElapsedTime(elapsedMs)}
@@ -467,37 +492,18 @@ export default function App() {
                   </div>
                 </div>
 
-                {/* Secondary Progress & Next Piece Preview */}
-                <div className="pt-3 border-t border-white/[0.07] space-y-3">
-                  <div className="flex items-center justify-between text-xs sm:text-sm text-zinc-300">
-                    <span>
-                      Lines{' '}
-                      <strong className="font-mono-tabular font-semibold text-white ml-1">
-                        {lines}
-                      </strong>
-                    </span>
-                    <span className="text-zinc-600" aria-hidden="true">
-                      ·
-                    </span>
-                    <span>
-                      Level{' '}
-                      <strong className="font-mono-tabular font-semibold text-white ml-1">
-                        {level}
-                      </strong>
-                    </span>
-                  </div>
-
-                  {!layout.compact && (
-                    <div>
-                      <div className="text-xs font-medium text-zinc-400 mb-2">Next Tile</div>
-                      <div className="w-full py-2 bg-[#121418] border border-white/[0.06] rounded flex items-center justify-center">
-                        <NextPieceCanvas
-                          nextGrid={snapshotRef.current?.nextGrid ?? null}
-                          frameVersion={frameVersion}
-                        />
-                      </div>
-                    </div>
-                  )}
+                {/* Lines & Level */}
+                <div className="pt-3 border-t border-white/[0.07] flex items-center justify-between gap-2 text-[9px] sm:text-[10px] text-zinc-300">
+                  <span>
+                    Lines{' '}
+                    <strong className="font-mono-tabular text-white ml-1">{lines}</strong>
+                  </span>
+                  <span className="text-zinc-600" aria-hidden="true">
+                    /
+                  </span>
+                  <span>
+                    Lv <strong className="font-mono-tabular text-white ml-1">{level}</strong>
+                  </span>
                 </div>
               </div>
 
@@ -509,7 +515,7 @@ export default function App() {
                       type="button"
                       onClick={handleStart}
                       disabled={!wasmReady}
-                      className="flex-1 inline-flex items-center justify-center gap-1.5 px-3 py-2 rounded-md bg-[#F1F3F5] text-[#131518] text-xs sm:text-sm font-semibold hover:bg-white transition-colors cursor-pointer whitespace-nowrap shrink-0 disabled:opacity-50"
+                      className="flex-1 inline-flex items-center justify-center gap-1.5 px-3 py-2.5 rounded-md bg-[#F1F3F5] text-[#131518] text-[9px] sm:text-[10px] hover:bg-white transition-colors cursor-pointer whitespace-nowrap shrink-0 disabled:opacity-50"
                     >
                       <Play className="w-3.5 h-3.5" />
                       <span>{gameState === GameState.GAME_OVER ? 'Play Again' : 'Start Game'}</span>
@@ -519,7 +525,7 @@ export default function App() {
                       <button
                         type="button"
                         onClick={handleTogglePause}
-                        className="flex-1 inline-flex items-center justify-center gap-1.5 px-3 py-2 rounded-md bg-white/10 text-white text-xs sm:text-sm font-medium hover:bg-white/15 transition-colors cursor-pointer whitespace-nowrap shrink-0"
+                        className="flex-1 inline-flex items-center justify-center gap-1.5 px-3 py-2.5 rounded-md bg-white/10 text-white text-[9px] sm:text-[10px] hover:bg-white/15 transition-colors cursor-pointer whitespace-nowrap shrink-0"
                       >
                         {gameState === GameState.PAUSED ? (
                           <>
@@ -547,25 +553,25 @@ export default function App() {
                 </div>
 
                 {!layout.compact && (
-                  <div className="space-y-1.5 text-xs text-zinc-400">
+                  <div className="space-y-2 text-[8px] sm:text-[9px] text-zinc-400">
                     <div className="flex items-center justify-between gap-2">
                       <span>Move</span>
-                      <span className="font-mono-tabular text-zinc-200">← → / A D</span>
+                      <span className="font-mono-tabular text-zinc-200">&lt; &gt; / A D</span>
                     </div>
                     <div className="flex items-center justify-between gap-2">
                       <span>Rotate</span>
-                      <span className="font-mono-tabular text-zinc-200">↑ / W</span>
+                      <span className="font-mono-tabular text-zinc-200">^ / W</span>
                     </div>
                     <div className="flex items-center justify-between gap-2">
-                      <span>Soft Drop</span>
-                      <span className="font-mono-tabular text-zinc-200">↓ / S</span>
+                      <span>Drop</span>
+                      <span className="font-mono-tabular text-zinc-200">v / S</span>
                     </div>
                     <div className="flex items-center justify-between gap-2">
-                      <span>Hard Drop</span>
+                      <span>Hard</span>
                       <span className="font-mono-tabular text-zinc-200">Space</span>
                     </div>
                     <div className="flex items-center justify-between gap-2">
-                      <span>Pause / Reset</span>
+                      <span>Pause/Reset</span>
                       <span className="font-mono-tabular text-zinc-200">P / R</span>
                     </div>
                   </div>
