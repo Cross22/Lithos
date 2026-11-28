@@ -209,7 +209,7 @@ public:
     for (int32_t r = 0; r < 4; ++r)
     {
       const int32_t gy = ghost_y + r;
-      if (gy < 0 && gy >= HEIGHT)
+      if (gy < 0 || gy >= HEIGHT)
         continue;
 
       for (int32_t c = 0; c < 4; ++c)

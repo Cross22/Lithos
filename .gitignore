@@ -27,4 +27,3 @@ npm-debug.log*
 .env.example
 public/game.wasm
 package-lock.json
-public/game.wasm

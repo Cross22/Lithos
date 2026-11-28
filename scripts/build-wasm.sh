@@ -31,6 +31,7 @@ find_wasi_sdk() {
     "${WASI_SDK_PATH:-}"
     "$HOME/.local/wasi-sdk"
     "/opt/wasi-sdk"
+    "/tmp/wasi-sdk"
     "/opt/homebrew/opt/wasi-sdk"
     "/usr/local/opt/wasi-sdk"
   )
@@ -44,6 +45,23 @@ find_wasi_sdk() {
 }
 
 WASI_SDK_DIR="$(find_wasi_sdk || true)"
+if [ -z "$WASI_SDK_DIR" ] && [ "${WASI_AUTO_INSTALL:-0}" = "1" ] && [ "$(uname -s)" = "Linux" ]; then
+  WASI_SDK_TAG="wasi-sdk-34"
+  WASI_SDK_VER="34.0"
+  ARCH="$(uname -m)"
+  if [ "$ARCH" = "aarch64" ] || [ "$ARCH" = "arm64" ]; then
+    TARBALL="wasi-sdk-${WASI_SDK_VER}-arm64-linux.tar.gz"
+  else
+    TARBALL="wasi-sdk-${WASI_SDK_VER}-x86_64-linux.tar.gz"
+  fi
+  URL="https://github.com/WebAssembly/wasi-sdk/releases/download/${WASI_SDK_TAG}/${TARBALL}"
+  echo "wasi-sdk not found; bootstrapping ${TARBALL} into /tmp/wasi-sdk..."
+  mkdir -p /tmp/wasi-sdk
+  if curl -fsSL "$URL" | tar -xz --strip-components=1 -C /tmp/wasi-sdk; then
+    WASI_SDK_DIR="/tmp/wasi-sdk"
+  fi
+fi
+
 if [ -z "$WASI_SDK_DIR" ]; then
   if [ "$(uname -s)" = "Darwin" ]; then
     echo "ERROR: wasi-sdk not found. Run ./setup-macos.sh to install wasi-sdk into \$HOME/.local/wasi-sdk." >&2
