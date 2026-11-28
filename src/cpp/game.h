@@ -30,11 +30,10 @@ public:
   uint32_t lines = 0;
   uint32_t elapsed_ms = 0;
 
-  int32_t cur_type = 0;
-  int32_t cur_rot = 0;
+  Shape nextShape;
+  Shape currShape;
   int32_t cur_x = 3;
   int32_t cur_y = 0;
-  int32_t next_type = 1;
 
   int32_t gravity_timer_ms = 0;
   int32_t clear_timer_ms = 0;
@@ -77,7 +76,7 @@ public:
     hold_down = false;
     resetKeyRepeat();
 
-    next_type = bag.draw_piece();
+    nextShape = bag.draw_piece();
     updateShapePreview();
     update_render_grid();
   }
@@ -94,7 +93,7 @@ public:
   {
     init();
     bag = Bag(seed);
-    next_type = bag.draw_piece();
+    nextShape = bag.draw_piece();
     state = State::PLAYING;
     spawn_next_piece();
     update_render_grid();
@@ -120,27 +119,16 @@ public:
     }
   }
 
-  // Returns true if pixel is set for a given
-  // shape of type "type" with the given rotation.
-  // row/col offsets are shape-relative [0..3]
-  constexpr bool shapePixelSet(int32_t type, int32_t rot, int32_t row, int32_t col)
-  {
-    const auto &shape = SHAPES[type];
-    const uint16_t mask = shape[rot % 4];
-    const int32_t bit = 15 - (row * 4 + col);
-    return ((mask >> bit) & 1u) != 0;
-  }
-
   // Checks if shape typ with rotation rot can be placed at top-left board coordinates px/py
   // without overlaps
-  bool fits(int32_t type, int32_t rot, int32_t px, int32_t py)
+  bool fits(const Shape &shape, int32_t px, int32_t py)
   {
     for (int32_t r = 0; r < 4; ++r)
     {
       const int32_t by = py + r;
       for (int32_t c = 0; c < 4; ++c)
       {
-        if (!shapePixelSet(type, rot, r, c))
+        if (!shape.isPixelSet(r, c))
           continue;
         const int32_t bx = px + c;
         if (bx < 0 || bx >= WIDTH || by >= HEIGHT)
@@ -159,16 +147,19 @@ public:
   // Update top-right preview window by setting its cell value to next_type+1
   void updateShapePreview()
   {
+    // UI layer uses 0 as empty marker, so shape type becomes 1-based instead of 0-based
+    uint8_t shapeValue = nextShape.getGridValue();
+
     ranges::fill(next_grid, 0);
-    const uint8_t shapeType = next_type + 1;
+
     for (int32_t r = 0; r < 4; ++r)
     {
       for (int32_t c = 0; c < 4; ++c)
       {
-        if (shapePixelSet(next_type, 0, r, c))
+        if (nextShape.isPixelSet(r, c))
         {
           auto index = (size_t)(r * 4 + c);
-          next_grid[index] = shapeType;
+          next_grid[index] = shapeValue;
         }
       }
     }
@@ -190,11 +181,6 @@ public:
     return (uint8_t)(32 + cellValue);
   }
 
-  constexpr uint8_t ghostValue(uint8_t cellValue) const
-  {
-    return (uint8_t)(17 + cellValue);
-  }
-
   void update_render_grid()
   {
     for (int32_t r = 0; r < HEIGHT; ++r)
@@ -212,27 +198,32 @@ public:
     {
       return;
     }
+
     // Project ghost landing position
     int32_t ghost_y = cur_y;
-    while (fits(cur_type, cur_rot, cur_x, ghost_y + 1))
+    while (fits(currShape, cur_x, ghost_y + 1))
     {
       ++ghost_y;
     }
 
     for (int32_t r = 0; r < 4; ++r)
     {
+      const int32_t gy = ghost_y + r;
+      if (gy < 0 && gy >= HEIGHT)
+        continue;
+
       for (int32_t c = 0; c < 4; ++c)
       {
-        if (!shapePixelSet(cur_type, cur_rot, r, c))
+        if (!currShape.isPixelSet(r, c))
           continue;
+
         const int32_t bx = cur_x + c;
-        const int32_t gy = ghost_y + r;
-        if (bx >= 0 && bx < WIDTH && gy >= 0 && gy < HEIGHT)
+        if (bx >= 0 && bx < WIDTH)
         {
           const size_t idx = (size_t)(gy * WIDTH + bx);
           if (render_grid[idx] == 0)
           {
-            render_grid[idx] = ghostValue(cur_type);
+            render_grid[idx] = currShape.getGridGhostValue();
           }
         }
       }
@@ -243,14 +234,13 @@ public:
     {
       for (int32_t c = 0; c < 4; ++c)
       {
-        if (!shapePixelSet(cur_type, cur_rot, r, c))
+        if (!currShape.isPixelSet(r, c))
           continue;
         const int32_t bx = cur_x + c;
         const int32_t by = cur_y + r;
         if (bx >= 0 && bx < WIDTH && by >= 0 && by < HEIGHT)
         {
-          render_grid[(size_t)(by * WIDTH + bx)] =
-              (uint8_t)(cur_type + 1);
+          render_grid[(by * WIDTH + bx)] = currShape.getGridValue();
         }
       }
     }
@@ -258,15 +248,14 @@ public:
 
   void spawn_next_piece()
   {
-    cur_type = next_type;
-    next_type = bag.draw_piece();
-    cur_rot = 0;
+    currShape = std::move(nextShape);
+    nextShape = bag.draw_piece();
     cur_x = 3;
     cur_y = 0;
     gravity_timer_ms = 0;
     updateShapePreview();
 
-    if (!fits(cur_type, cur_rot, cur_x, cur_y))
+    if (!fits(currShape, cur_x, cur_y))
     {
       state = State::GAME_OVER;
       pending_events |= Event::GAME_OVER;
@@ -322,20 +311,22 @@ public:
     bool overflow = false;
     for (int32_t r = 0; r < 4; ++r)
     {
+      const int32_t by = cur_y + r;
+      if (by >= HEIGHT)
+        continue;
+
       for (int32_t c = 0; c < 4; ++c)
       {
-        if (!shapePixelSet(cur_type, cur_rot, r, c))
+        if (!currShape.isPixelSet(r, c))
           continue;
         const int32_t bx = cur_x + c;
-        const int32_t by = cur_y + r;
         if (by < 0)
         {
           overflow = true;
         }
-        else if (bx >= 0 && bx < WIDTH && by < HEIGHT)
+        else if (bx >= 0 && bx < WIDTH)
         {
-          board[(size_t)(by * WIDTH + bx)] =
-              (uint8_t)(cur_type + 1);
+          board[(size_t)(by * WIDTH + bx)] = currShape.getGridValue();
         }
       }
     }
@@ -381,7 +372,7 @@ public:
       return false;
     }
 
-    if (fits(cur_type, cur_rot, cur_x + dx, cur_y + dy))
+    if (fits(currShape, cur_x + dx, cur_y + dy))
     {
       cur_x += dx;
       cur_y += dy;
@@ -400,14 +391,15 @@ public:
     {
       return false;
     }
-    const int32_t next_rot = (cur_rot + 1) % 4;
+
+    Shape rotatedShape = currShape.makeRotatedShape();
     for (const auto &kick : KICKS)
     {
       const int32_t kx = cur_x + kick[0];
       const int32_t ky = cur_y + kick[1];
-      if (fits(cur_type, next_rot, kx, ky))
+      if (fits(rotatedShape, kx, ky))
       {
-        cur_rot = next_rot;
+        currShape = std::move(rotatedShape);
         cur_x = kx;
         cur_y = ky;
         pending_events |= Event::ROTATE;
@@ -423,7 +415,7 @@ public:
       return;
 
     int32_t dropped = 0;
-    while (fits(cur_type, cur_rot, cur_x, cur_y + 1))
+    while (fits(currShape, cur_x, cur_y + 1))
     {
       ++cur_y;
       ++dropped;
