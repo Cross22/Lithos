@@ -14,7 +14,7 @@
   :root {
     /* Inform browser UI (scrollbars, form controls) that this is a dark surface */
     color-scheme: dark;
-    font-family: 'Press Start 2P', ui-monospace, monospace;
+    font-family: 'Silkscreen', 'Press Start 2P', ui-monospace, monospace;
   }
 
   /* Lock root containers to exact viewport height to keep all 20 rows visible
@@ -28,10 +28,9 @@
     overflow: hidden;
     background-color: #131518;
     color: #f1f3f5;
-    font-family: 'Press Start 2P', ui-monospace, monospace;
-    -webkit-font-smoothing: none;
+    font-family: 'Silkscreen', 'Press Start 2P', ui-monospace, monospace;
+    -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
-    font-smooth: never;
   }
 
   button,
@@ -44,12 +43,12 @@
 
 /* Display typography for game title and state overlay headings */
 .font-display {
-  font-family: 'Press Start 2P', ui-monospace, monospace;
+  font-family: 'Press Start 2P', 'Silkscreen', ui-monospace, monospace;
 }
 
 /* Fixed-width tabular numerals for Score, Elapsed Time, Lines, Level, and keycaps */
 .font-mono-tabular {
-  font-family: 'Press Start 2P', ui-monospace, monospace;
+  font-family: 'Press Start 2P', 'Silkscreen', ui-monospace, monospace;
   font-variant-numeric: tabular-nums;
 }
 

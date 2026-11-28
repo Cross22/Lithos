@@ -427,7 +427,8 @@ public:
 
   int32_t gravity_interval_ms()
   {
-    return max(75, 820 - (level - 1) * 70);
+    const int32_t SPEEDUP_MS = 100;
+    return max(75, 800 - (level - 1) * SPEEDUP_MS);
   }
 
   void onKeyPressed(int32_t key_code)
