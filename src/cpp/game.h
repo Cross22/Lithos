@@ -11,18 +11,15 @@
 
 using namespace std;
 
-namespace CONFIG
-{
-  constexpr int32_t WIDTH = 10;
-  constexpr int32_t HEIGHT = 20;
-  constexpr int32_t SIZE = WIDTH * HEIGHT;
-};
-
 class Game
 {
 public:
-  array<uint8_t, CONFIG::SIZE> board{};
-  array<uint8_t, CONFIG::SIZE> render_grid{};
+  static constexpr int32_t WIDTH = 10;
+  static constexpr int32_t HEIGHT = 20;
+  static constexpr int32_t SIZE = WIDTH * HEIGHT;
+
+  array<uint8_t, SIZE> board{};
+  array<uint8_t, SIZE> render_grid{};
   array<uint8_t, 16> next_grid{};
 
   Bag bag;
@@ -39,8 +36,10 @@ public:
   int32_t cur_y = 0;
   int32_t next_type = 1;
 
-  uint32_t gravity_timer_ms = 0;
-  uint32_t clear_timer_ms = 0;
+  int32_t gravity_timer_ms = 0;
+  int32_t clear_timer_ms = 0;
+
+  // Each bit corresponds to one row and is 1 if that row is about to be cleared
   uint32_t clearing_rows_mask = 0;
 
   // Input state for smooth DAS / ARR
@@ -58,7 +57,7 @@ public:
 
   uint32_t pending_events = 0;
 
-  void init(uint32_t seed)
+  void init()
   {
     ranges::fill(board, 0);
     ranges::fill(render_grid, 0);
@@ -70,24 +69,32 @@ public:
     elapsed_ms = 0;
     clear_timer_ms = 0;
     clearing_rows_mask = 0;
-    hold_left = false;
-    hold_right = false;
-    hold_down = false;
-    das_dir = 0;
-    das_timer_ms = 0;
-    arr_timer_ms = 0;
     soft_drop_timer_ms = 0;
     pending_events = 0;
 
-    bag = Bag(seed);
+    hold_left = false;
+    hold_right = false;
+    hold_down = false;
+    resetKeyRepeat();
+
     next_type = bag.draw_piece();
-    update_next_grid();
+    updateShapePreview();
     update_render_grid();
+  }
+
+  // Initial (DAS) and repeat (ARR) delays
+  void resetKeyRepeat(int32_t xDirection = 0)
+  {
+    das_dir = xDirection;
+    das_timer_ms = 0;
+    arr_timer_ms = 0;
   }
 
   void start(uint32_t seed)
   {
-    init(seed);
+    init();
+    bag = Bag(seed);
+    next_type = bag.draw_piece();
     state = State::PLAYING;
     spawn_next_piece();
     update_render_grid();
@@ -103,36 +110,44 @@ public:
       hold_down = false;
       das_dir = 0;
       update_render_grid();
+      return;
     }
-    else if (state == State::PAUSED)
+
+    if (state == State::PAUSED)
     {
       state = State::PLAYING;
       update_render_grid();
     }
   }
 
-  bool shape_cell(int32_t type, int32_t rot, int32_t r, int32_t c)
+  // Returns true if pixel is set for a given
+  // shape of type "type" with the given rotation.
+  // row/col offsets are shape-relative [0..3]
+  constexpr bool shapePixelSet(int32_t type, int32_t rot, int32_t row, int32_t col)
   {
-    const uint16_t mask = SHAPES[static_cast<size_t>(type)][static_cast<size_t>(rot & 3)];
-    const int32_t bit = 15 - (r * 4 + c);
+    const auto &shape = SHAPES[type];
+    const uint16_t mask = shape[rot % 4];
+    const int32_t bit = 15 - (row * 4 + col);
     return ((mask >> bit) & 1u) != 0;
   }
 
+  // Checks if shape typ with rotation rot can be placed at top-left board coordinates px/py
+  // without overlaps
   bool fits(int32_t type, int32_t rot, int32_t px, int32_t py)
   {
     for (int32_t r = 0; r < 4; ++r)
     {
+      const int32_t by = py + r;
       for (int32_t c = 0; c < 4; ++c)
       {
-        if (!shape_cell(type, rot, r, c))
+        if (!shapePixelSet(type, rot, r, c))
           continue;
         const int32_t bx = px + c;
-        const int32_t by = py + r;
-        if (bx < 0 || bx >= CONFIG::WIDTH || by >= CONFIG::HEIGHT)
+        if (bx < 0 || bx >= WIDTH || by >= HEIGHT)
         {
           return false;
         }
-        if (by >= 0 && board[static_cast<size_t>(by * CONFIG::WIDTH + bx)] != 0)
+        if (by >= 0 && board[(by * WIDTH + bx)] != 0)
         {
           return false;
         }
@@ -141,16 +156,19 @@ public:
     return true;
   }
 
-  void update_next_grid()
+  // Update top-right preview window by setting its cell value to next_type+1
+  void updateShapePreview()
   {
     ranges::fill(next_grid, 0);
+    const uint8_t shapeType = next_type + 1;
     for (int32_t r = 0; r < 4; ++r)
     {
       for (int32_t c = 0; c < 4; ++c)
       {
-        if (shape_cell(next_type, 0, r, c))
+        if (shapePixelSet(next_type, 0, r, c))
         {
-          next_grid[static_cast<size_t>(r * 4 + c)] = static_cast<uint8_t>(next_type + 1);
+          auto index = (size_t)(r * 4 + c);
+          next_grid[index] = shapeType;
         }
       }
     }
@@ -162,24 +180,31 @@ public:
     return (state == State::PLAYING && clear_timer_ms == 0);
   }
 
+  bool isClearingRow(int32_t row) const
+  {
+    return ((clearing_rows_mask & (1u << row)) != 0);
+  }
+
+  constexpr uint8_t clearingValue(uint8_t cellValue) const
+  {
+    return (uint8_t)(32 + cellValue);
+  }
+
+  constexpr uint8_t ghostValue(uint8_t cellValue) const
+  {
+    return (uint8_t)(17 + cellValue);
+  }
+
   void update_render_grid()
   {
-    for (int32_t r = 0; r < CONFIG::HEIGHT; ++r)
+    for (int32_t r = 0; r < HEIGHT; ++r)
     {
-      const bool is_clearing =
-          (clear_timer_ms > 0) && ((clearing_rows_mask & (1u << r)) != 0);
-      for (int32_t c = 0; c < CONFIG::WIDTH; ++c)
+      const bool isClearing = (clear_timer_ms > 0) && isClearingRow(r);
+      for (int32_t c = 0; c < WIDTH; ++c)
       {
-        const size_t idx = static_cast<size_t>(r * CONFIG::WIDTH + c);
-        const uint8_t cell = board[idx];
-        if (is_clearing && cell != 0)
-        {
-          render_grid[idx] = static_cast<uint8_t>(32 + cell);
-        }
-        else
-        {
-          render_grid[idx] = cell;
-        }
+        const size_t idx = (size_t)(r * WIDTH + c);
+        const uint8_t cellContent = board[idx];
+        render_grid[idx] = (isClearing && cellContent != 0) ? clearingValue(cellContent) : cellContent;
       }
     }
 
@@ -198,16 +223,16 @@ public:
     {
       for (int32_t c = 0; c < 4; ++c)
       {
-        if (!shape_cell(cur_type, cur_rot, r, c))
+        if (!shapePixelSet(cur_type, cur_rot, r, c))
           continue;
         const int32_t bx = cur_x + c;
         const int32_t gy = ghost_y + r;
-        if (bx >= 0 && bx < CONFIG::WIDTH && gy >= 0 && gy < CONFIG::HEIGHT)
+        if (bx >= 0 && bx < WIDTH && gy >= 0 && gy < HEIGHT)
         {
-          const size_t idx = static_cast<size_t>(gy * CONFIG::WIDTH + bx);
+          const size_t idx = (size_t)(gy * WIDTH + bx);
           if (render_grid[idx] == 0)
           {
-            render_grid[idx] = static_cast<uint8_t>(17 + cur_type);
+            render_grid[idx] = ghostValue(cur_type);
           }
         }
       }
@@ -218,14 +243,14 @@ public:
     {
       for (int32_t c = 0; c < 4; ++c)
       {
-        if (!shape_cell(cur_type, cur_rot, r, c))
+        if (!shapePixelSet(cur_type, cur_rot, r, c))
           continue;
         const int32_t bx = cur_x + c;
         const int32_t by = cur_y + r;
-        if (bx >= 0 && bx < CONFIG::WIDTH && by >= 0 && by < CONFIG::HEIGHT)
+        if (bx >= 0 && bx < WIDTH && by >= 0 && by < HEIGHT)
         {
-          render_grid[static_cast<size_t>(by * CONFIG::WIDTH + bx)] =
-              static_cast<uint8_t>(cur_type + 1);
+          render_grid[(size_t)(by * WIDTH + bx)] =
+              (uint8_t)(cur_type + 1);
         }
       }
     }
@@ -239,7 +264,7 @@ public:
     cur_x = 3;
     cur_y = 0;
     gravity_timer_ms = 0;
-    update_next_grid();
+    updateShapePreview();
 
     if (!fits(cur_type, cur_rot, cur_x, cur_y))
     {
@@ -251,8 +276,8 @@ public:
   void collapse_cleared_rows()
   {
     int32_t cleared = 0;
-    int32_t write_row = CONFIG::HEIGHT - 1;
-    for (int32_t r = CONFIG::HEIGHT - 1; r >= 0; --r)
+    int32_t write_row = HEIGHT - 1;
+    for (int32_t r = HEIGHT - 1; r >= 0; --r)
     {
       if ((clearing_rows_mask & (1u << r)) != 0)
       {
@@ -262,24 +287,24 @@ public:
       {
         if (write_row != r)
         {
-          const auto src_begin = board.begin() + r * CONFIG::WIDTH;
-          const auto dst_begin = board.begin() + write_row * CONFIG::WIDTH;
-          copy(src_begin, src_begin + CONFIG::WIDTH, dst_begin);
+          const auto src_begin = board.begin() + r * WIDTH;
+          const auto dst_begin = board.begin() + write_row * WIDTH;
+          copy(src_begin, src_begin + WIDTH, dst_begin);
         }
         --write_row;
       }
     }
     while (write_row >= 0)
     {
-      const auto row_begin = board.begin() + write_row * CONFIG::WIDTH;
-      fill(row_begin, row_begin + CONFIG::WIDTH, static_cast<uint8_t>(0));
+      const auto row_begin = board.begin() + write_row * WIDTH;
+      fill(row_begin, row_begin + WIDTH, (uint8_t)(0));
       --write_row;
     }
 
     if (cleared > 0)
     {
       static constexpr array<int32_t, 5> LINE_SCORES = {0, 100, 300, 500, 800};
-      const int32_t pts = LINE_SCORES[static_cast<size_t>(min(cleared, 4))] * level;
+      const int32_t pts = LINE_SCORES[(size_t)(min(cleared, 4))] * level;
       score += pts;
       high_score = max(high_score, score);
       lines += cleared;
@@ -299,7 +324,7 @@ public:
     {
       for (int32_t c = 0; c < 4; ++c)
       {
-        if (!shape_cell(cur_type, cur_rot, r, c))
+        if (!shapePixelSet(cur_type, cur_rot, r, c))
           continue;
         const int32_t bx = cur_x + c;
         const int32_t by = cur_y + r;
@@ -307,10 +332,10 @@ public:
         {
           overflow = true;
         }
-        else if (bx >= 0 && bx < CONFIG::WIDTH && by < CONFIG::HEIGHT)
+        else if (bx >= 0 && bx < WIDTH && by < HEIGHT)
         {
-          board[static_cast<size_t>(by * CONFIG::WIDTH + bx)] =
-              static_cast<uint8_t>(cur_type + 1);
+          board[(size_t)(by * WIDTH + bx)] =
+              (uint8_t)(cur_type + 1);
         }
       }
     }
@@ -325,10 +350,10 @@ public:
 
     uint32_t mask = 0;
     int32_t count = 0;
-    for (int32_t r = 0; r < CONFIG::HEIGHT; ++r)
+    for (int32_t r = 0; r < HEIGHT; ++r)
     {
-      const auto row_begin = board.begin() + r * CONFIG::WIDTH;
-      const bool full = all_of(row_begin, row_begin + CONFIG::WIDTH, [](uint8_t cell)
+      const auto row_begin = board.begin() + r * WIDTH;
+      const bool full = all_of(row_begin, row_begin + WIDTH, [](uint8_t cell)
                                { return cell != 0; });
       if (full)
       {
@@ -375,7 +400,7 @@ public:
     {
       return false;
     }
-    const int32_t next_rot = (cur_rot + 1) & 3;
+    const int32_t next_rot = (cur_rot + 1) % 4;
     for (const auto &kick : KICKS)
     {
       const int32_t kx = cur_x + kick[0];
@@ -443,9 +468,7 @@ public:
       if (!hold_left)
       {
         hold_left = true;
-        das_dir = -1;
-        das_timer_ms = 0;
-        arr_timer_ms = 0;
+        resetKeyRepeat(-1);
         try_move(-1, 0);
       }
     }
@@ -454,9 +477,7 @@ public:
       if (!hold_right)
       {
         hold_right = true;
-        das_dir = 1;
-        das_timer_ms = 0;
-        arr_timer_ms = 0;
+        resetKeyRepeat(1);
         try_move(1, 0);
       }
     }
@@ -495,9 +516,7 @@ public:
       hold_left = false;
       if (hold_right)
       {
-        das_dir = 1;
-        das_timer_ms = 0;
-        arr_timer_ms = 0;
+        resetKeyRepeat(1);
       }
       else if (das_dir == -1)
       {
@@ -509,9 +528,7 @@ public:
       hold_right = false;
       if (hold_left)
       {
-        das_dir = -1;
-        das_timer_ms = 0;
-        arr_timer_ms = 0;
+        resetKeyRepeat(-1);
       }
       else if (das_dir == 1)
       {

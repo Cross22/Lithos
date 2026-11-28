@@ -10,7 +10,7 @@ extern "C"
 {
 
   WASM_EXPORT(init_game)
-  void init_game(uint32_t seed) { g.init(seed); }
+  void init_game(uint32_t) { g.init(); }
 
   WASM_EXPORT(start_game)
   void start_game(uint32_t seed) { g.start(seed); }
@@ -39,10 +39,10 @@ extern "C"
   const uint8_t *get_next_grid() { return g.next_grid.data(); }
 
   WASM_EXPORT(get_board_width)
-  int32_t get_board_width() { return CONFIG::WIDTH; }
+  int32_t get_board_width() { return Game::WIDTH; }
 
   WASM_EXPORT(get_board_height)
-  int32_t get_board_height() { return CONFIG::HEIGHT; }
+  int32_t get_board_height() { return Game::HEIGHT; }
 
   WASM_EXPORT(get_score)
   int32_t get_score() { return g.score; }
